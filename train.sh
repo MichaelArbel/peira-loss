@@ -16,12 +16,12 @@
 
 
 parent_work_dir="../data/.workdir"
-parent_log_dir="data/outputs/deterministic_5"
+parent_log_dir="data/outputs/deterministic_6"
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 learner.name="algorithms.CSEgrad","algorithms.SemiGradSSL"\
-                task.init_seed=0,1,2,3,4\
+                task.init_seed=0\
                 task.init_scale=1.,0.1,0.01,0.0001\
                 learner.kwargs.reg_c=0.01\
                 +mlxp.use_version_manager=True\

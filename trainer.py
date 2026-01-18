@@ -107,11 +107,11 @@ class CCATrainer:
                     "align_2": align2.item(),
                 }, log_name= "metrics")
 
-            if np.mod(step,10)==0:
+            if np.mod(step,100)==0:
                 self.logger.log_artifacts({"alignment": alignment.cpu().numpy(), 
                                            "spectrum":spectrum["S_u"].cpu().numpy(), 
                                            "iter": step}, 
-                                           f"alignments",
+                                           f"alignments_{step}",
                                             artifact_type= "pickle")
 
 
