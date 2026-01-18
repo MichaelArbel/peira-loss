@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=19:10:00
+#SBATCH --time=0:10:00
 #SBATCH --account=jsc@a100
 #SBATCH --constraint=a100
 #SBATCH --hint=nomultithread
@@ -16,7 +16,7 @@
 
 
 parent_work_dir="../data/.workdir"
-parent_log_dir="data/outputs/deterministic_3"
+parent_log_dir="data/outputs/deterministic_4"
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
