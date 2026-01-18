@@ -94,7 +94,11 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype):
     A1 = P1 @ torch.diag(S_vals_1)@ Q.t()
     A2 = P1 @ torch.diag(S_vals_2) @ Q.t()
 
-    info = {"P": P1, "S_1": S_vals_1, "S_2": S_vals_2, "sigma": sigma}
+    info = {"P": P1, 
+            "S_1": S_vals_1, 
+            "S_2": S_vals_2, 
+            "sigma": sigma}
+    
     return A1, A2, info
 
 

@@ -68,10 +68,15 @@ class CCATrainer:
         set_seed(self.cfg.init_seed)
         # 1. Start very close to zero with a slight random perturbation
         self.rep_learner.reset_parameters(mode=self.cfg.init_mode, scale=self.cfg.init_scale) 
-        self.logger.log_artifacts(self.loader.info, f"data_info",
+        
+        info = {
+                k: (v.cpu().numpy() if torch.is_tensor(v) else v) 
+                for k, v in self.loader.info.items()
+            }
+        self.logger.log_artifacts(info, f"data_info",
                                   artifact_type= "pickle")
         target_spectrum = self.rep_learner.filter(self.loader)
-        self.logger.log_artifacts(target_spectrum, f"target_spectrum",
+        self.logger.log_artifacts(target_spectrum.cpu().detach(), f"target_spectrum",
                                   artifact_type= "pickle")
 
         for step in range(self.cfg.steps_per_epoch):
