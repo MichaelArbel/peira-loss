@@ -11,6 +11,7 @@ task:
   steps_per_epoch: 10000    # Number of alternating updates per epoch
   init_seed: 0
   init_scale: 0.0001
+  init_mode: "near_zero"
 
 
 device: "cuda"          # or "cpu"
@@ -33,7 +34,7 @@ data:
 learner:
   name: "algorithms.CSEgrad"  # CSEgrad or SemiGradSSL
   kwargs:
-    latent_dim: 2          # The size of representations u and v
+    latent_dim: 30          # The size of representations u and v
     lr_theta: 1.         # Learning rate for U_theta
     lr_psi: 0.1           # Learning rate for V_psi
     eta: 1.              # Learning rate for S update (LinPred)

@@ -54,7 +54,7 @@ def compute_SG_SSL(u,v, Q, S, reg_c,model):
     for param in model.parameters():
         l2_penalty += torch.sum(param ** 2)
     pred = torch.einsum('rk,kl,bl->br',S,Q,u)
-    return 0.5*torch.nn.functional.mse_loss(pred, v) + 0.5*reg_c*l2_penalty
+    return 0.5*torch.mean(torch.sum((pred-v)**2,dim=1)) + 0.5*reg_c*l2_penalty
 
 
 def compute_spectrum(data_gen, 
@@ -293,9 +293,10 @@ class RepLearner(nn.Module):
                         # Critical for your experiment: initialize 
                         # weights extremely close to 0.
                         nn.init.normal_(m.weight, mean=0.0, std=scale)
-                    else:
+                    elif mode == 'orthogonal':
                         # Standard Xavier initialization
-                        nn.init.xavier_uniform_(m.weight)
+                        nn.init.normal_(m.weight, mean=0.0, std=1.)
+                        m.weight.data, _ = torch.linalg.qr(m.weight.data, mode='reduced')
                     
                     if m.bias is not None:
                         nn.init.zeros_(m.bias)
@@ -313,7 +314,14 @@ class CSEgrad(RepLearner):
         super().__init__(encoder_u, encoder_v, **kwargs)
 
 
+    def filter(self, data_gen):
+        Sx = data_gen.info["S_1"]
+        Sy = data_gen.info["S_2"]
+        sigma = data_gen.info["sigma"]
+        Corr = Sx*Sy/(torch.sqrt(Sx**2+sigma**2)* torch.sqrt(Sy**2+sigma**2))
 
+        discriminant = Corr-self.reg_c
+        return torch.clamp(discriminant, min=0)
     
         
 
@@ -412,6 +420,25 @@ class SemiGradSSL(RepLearner):
 
         self.encoder_v = self.encoder_u
 
+    def filter(self, data_gen):
+        Sx = data_gen.info["S_1"]
+        Sy = data_gen.info["S_2"]
+        sigma = data_gen.info["sigma"]
+        Corr = Sx*Sy/(Sx**2+sigma**2)
+        thresh = self.reg_c/(Sx**2+sigma**2)
+
+        discriminant = Corr**2 - 4 * thresh
+        mask = (discriminant >= 0) & (thresh <= 0.25)
+        val = torch.where(
+            mask,
+            0.5 * (Corr + torch.sqrt(torch.clamp(discriminant, min=0))),
+            torch.zeros_like(Corr, dtype=torch.float64)
+        )
+        return val**2*(Sx**2+sigma**2)
+
+
+
+
     def forward_backward(self, data_gen):
         """
         One full iteration of SCEgrad using fresh batches.
@@ -450,7 +477,6 @@ class SemiGradSSL(RepLearner):
             else:
                 self.S  = (1-self.eta)*self.S + self.eta*S
                 self.F  = (1-self.eta)*self.F + self.eta*F
-
             self.Q = compute_inverse(self.F, self.reg_c)
         # --- UPDATE THETA (encoder_u) ---
         batch_cse_x, batch_cse_y = next(data_gen)

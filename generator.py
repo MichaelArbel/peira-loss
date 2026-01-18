@@ -66,8 +66,8 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype):
     Generates A1 and A2 such that svdvals(A2 @ A1.T) == target_svs
     """
     # Ensure target_svs is a double tensor
-    S_vals_1 = torch.logspace(0,-2, steps=dim_z, device =device, dtype=dtype)
-    S_vals_2 = torch.logspace(-3,0, steps=dim_z, device =device, dtype=dtype)
+    S_vals_1 = torch.logspace(0,-4, steps=dim_z, device =device, dtype=dtype)
+    S_vals_2 = S_vals_1#torch.logspace(-3,0, steps=dim_z, device =device, dtype=dtype)
 
     corr = filter(S_vals_1,sigma)*filter(S_vals_2,sigma)
     _, indices = torch.sort(corr, descending=True)
