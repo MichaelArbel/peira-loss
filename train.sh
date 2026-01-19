@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=0:40:00
+#SBATCH --time=0:10:00
 #SBATCH --account=jsc@a100
 #SBATCH --constraint=a100
 #SBATCH --hint=nomultithread
@@ -16,12 +16,12 @@
 
 
 parent_work_dir="../data/.workdir"
-parent_log_dir="data/outputs/deterministic_7"
+parent_log_dir="data/outputs/deterministic_9"
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 learner.name="algorithms.CSEgrad","algorithms.SemiGradSSL"\
-                task.init_seed=1,2,3,4\
+                task.init_seed=0,1,2,3,4\
                 task.init_scale=1.,0.1,0.01,0.001,0.0001\
                 learner.kwargs.reg_c=0.01\
                 learner.kwargs.lr_theta=10.\
