@@ -96,7 +96,7 @@ def plot_phase_portrait(df, figures_dir="figures"):
             # Pick specific indices to place arrows (e.g., every 20% of the trajectory)
             # We use a subset of indices to avoid clutter
             n_points = len(s1)
-            arrow_steps = [3, 10, 100, 200]
+            arrow_steps = [3, 10, 100]
             add_arrows(s1, s2, axes[1], arrow_steps,  n_points, color,fixed_pixel_length=0.01)
             add_arrows(a1, a2, axes[0], arrow_steps, n_points, color, fixed_pixel_length=0.01)
 

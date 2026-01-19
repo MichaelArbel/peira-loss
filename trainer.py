@@ -80,7 +80,7 @@ class CCATrainer:
                                   artifact_type= "pickle")
 
         for step in range(self.cfg.steps_per_epoch):
-            print(f"step: {step}")
+            
             #print([param for param in self.rep_learner.parameters()])
             with torch.no_grad():
                 spectrum = compute_spectrum(self.loader, self.rep_learner.encoder_u, view="x", num_batches=100)
@@ -96,16 +96,17 @@ class CCATrainer:
             # Perform one SCEgrad update
             metrics = self.rep_learner.forward_backward(self.loader)
 
-            self.logger.log_metrics({
-                    **metrics,
-                    "iter": step,
-                    "singval_1": s1.item(),
-                    "singval_2": s2.item(),
-                    "t_singval_1": ts1.item(),
-                    "t_singval_2": ts2.item(),
-                    "align_1": align1.item(),
-                    "align_2": align2.item(),
-                }, log_name= "metrics")
+            if np.mod(step,10)==0:
+                self.logger.log_metrics({
+                        **metrics,
+                        "iter": step,
+                        "singval_1": s1.item(),
+                        "singval_2": s2.item(),
+                        "t_singval_1": ts1.item(),
+                        "t_singval_2": ts2.item(),
+                        "align_1": align1.item(),
+                        "align_2": align2.item(),
+                    }, log_name= "metrics")
 
             if np.mod(step,100)==0:
                 self.logger.log_artifacts({"alignment": alignment.cpu().numpy(), 
@@ -114,11 +115,12 @@ class CCATrainer:
                                            f"alignments_{step}",
                                             artifact_type= "pickle")
 
-
-            print(f"spectrum: {(s1.item(),s2.item())}")
-            print(f"target spectrum: {(ts1.item(),ts2.item())}")
-            print(f"alignment: {(align1.item(), align2.item())}")
-            print(f"vector field norm: {metrics["running_grad_norm"]}")
-            print(f"objective: {metrics["loss_CSE"]}")
+            if np.mod(step,10)==0:
+                print(f"step: {step}")
+                print(f"spectrum: {(s1.item(),s2.item())}")
+                print(f"target spectrum: {(ts1.item(),ts2.item())}")
+                print(f"alignment: {(align1.item(), align2.item())}")
+                print(f"vector field norm: {metrics["running_grad_norm"]}")
+                print(f"objective: {metrics["loss_CSE"]}")
 
 
