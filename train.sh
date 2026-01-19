@@ -16,22 +16,23 @@
 
 
 parent_work_dir="../data/.workdir"
-parent_log_dir="data/outputs/deterministic_6"
+parent_log_dir="data/outputs/deterministic_7"
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 learner.name="algorithms.CSEgrad","algorithms.SemiGradSSL"\
                 task.init_seed=0\
-                task.init_scale=1.,0.1,0.01,0.0001\
+                task.init_scale=1.,0.1,0.01,0.001,0.0001\
                 learner.kwargs.reg_c=0.01\
+                learner.kwargs.lr_theta=10.\
                 +mlxp.use_version_manager=True\
                 +mlxp.interactive_mode=True\
                 +mlxp.logger.parent_log_dir=$parent_log_dir\
                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
 
 
-# parent_work_dir="../data/.workdir"
-# parent_log_dir="data/outputs/debug"
+parent_work_dir="../data/.workdir"
+parent_log_dir="data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
@@ -44,9 +45,10 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 learner.name="algorithms.CSEgrad"\
-#                 task.init_scale=.0001\
-#                 learner.kwargs.reg_c=0.01
+#                 learner.name="algorithms.SemiGradSSL"\
+#                 task.init_scale=0.001\
+#                 learner.kwargs.reg_c=0.01\
+#                 learner.kwargs.lr_theta=10.
 
 
 # if [[ $? == 124 ]]; then
