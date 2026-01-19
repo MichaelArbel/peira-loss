@@ -96,17 +96,17 @@ class CCATrainer:
             # Perform one SCEgrad update
             metrics = self.rep_learner.forward_backward(self.loader)
 
-            if np.mod(step,10)==0:
-                self.logger.log_metrics({
-                        **metrics,
-                        "iter": step,
-                        "singval_1": s1.item(),
-                        "singval_2": s2.item(),
-                        "t_singval_1": ts1.item(),
-                        "t_singval_2": ts2.item(),
-                        "align_1": align1.item(),
-                        "align_2": align2.item(),
-                    }, log_name= "metrics")
+            #if np.mod(step,10)==0:
+            self.logger.log_metrics({
+                    **metrics,
+                    "iter": step,
+                    "singval_1": s1.item(),
+                    "singval_2": s2.item(),
+                    "t_singval_1": ts1.item(),
+                    "t_singval_2": ts2.item(),
+                    "align_1": align1.item(),
+                    "align_2": align2.item(),
+                }, log_name= "metrics")
 
             if np.mod(step,100)==0:
                 self.logger.log_artifacts({"alignment": alignment.cpu().numpy(), 
