@@ -4,28 +4,11 @@ import torch.nn as nn
 import torch
 import torch.nn as nn
 
+from linear_predictors import (exact_inverse, newton_update)
 
 
+        
 
-        
-def compute_inverse(F, reg_c):
-    try:
-        # Sigma = L @ L.T
-        L = torch.linalg.cholesky(F + reg_c*torch.eye(F.shape[0], device=F.device, dtype=F.dtype) )
-        
-        # Q = inv(L.T) @ inv(L)
-        Q = torch.cholesky_inverse(L)
-        
-    except torch.linalg.LinAlgError:
-        # Backup: If Sigma is extremely ill-conditioned, add a tiny jitter
-        # and use a general inverse.
-        jitter = 1e-10 * torch.eye(F.shape[0], device=F.device, dtype=F.dtype)
-        Q = torch.linalg.inv(F + jitter)
-        
-    # 3. Symmetry Reinforcement
-    # Even with Cholesky, floating point noise can accumulate.
-    Q = 0.5 * (Q + Q.t())
-    return Q
 
 
 def compute_l_reg(u, v):
@@ -114,87 +97,17 @@ def compute_avg_field(avg_field_old, new_field, eta):
 
 
 
-def update_cov(data_gen, encoder_u, encoder_v, 
-                S_0,F_0, eta_0, 
-                n_opt_pred, 
-                cold_start=False,
-                symmetric_cov_uv=True,
-                EMA=False):
 
-
-    # --- UPDATE Q, S (LinPred) ---
-    if cold_start:
-        S = torch.zeros_like(S_0)
-        F = torch.zeros_like(F_0)
-    else:
-        S = S_0
-        F= F_0
-    
-    if EMA:
-        def eta_step(step):
-            return eta_0
-    else:
-        def eta_step(step):
-            return 1./(step+1)
+def _update_cov(S, eta, v, u = None):
 
     with torch.no_grad():
-        for iter_pred in range(n_opt_pred):
-            batch_pred_x, batch_pred_y = next(data_gen)
-            eta = eta_step(iter_pred)
-            if symmetric_cov_uv:
-                S = _update_cov(S, eta, 
-                                batch_pred_y, encoder_v)
-            else:
-                S = _update_cov(S, eta, 
-                                batch_pred_x, encoder_u,
-                                batch_pred_y, encoder_v)
-            F = _update_cov(F, eta, 
-                                batch_pred_x, encoder_u)
-    return S,F
-
-
-def _update_cov(S, eta, x_b, encoder_u, y_b = None, encoder_v=None):
-
-    with torch.no_grad():
-
-        u = encoder_u(x_b) # [batch, k]
-        batch_size = u.shape[0]
-        if y_b is None:
-            v = u
-        else:
-            if encoder_v is None:
-                encoder_v = encoder_u
-            v = encoder_v(y_b)   # [batch, k]
-
+        batch_size = v.shape[0]
+        if u is None:
+            u = v
         # 1. Update S: S = (1 - eta_S)S + eta_S * Mean(v v^T)
         S = (1 - eta) * S + eta * torch.matmul(v.t(), u) / batch_size
         return S
 
-
-def lin_reg_full_solve(data_gen, n_opt_pred, encoder_u):
-    def eta_step(step):
-        return 1./(step+1)
-    def identity(x):
-        return x
-
-    with torch.no_grad():
-        for iter_pred in range(n_opt_pred):
-            batch_pred_x, batch_pred_y = next(data_gen)
-            eta = eta_step(iter_pred)
-            if iter_pred==0:
-                u = encoder_u(batch_pred_x)
-                k, d = u.shape[1], batch_pred_y.shape[1]
-                S = torch.zeros(k,d, device=u.device)
-                F = torch.zeros(d,d, device=u.device)
-
-
-            S = _update_cov(S, eta, 
-                            batch_pred_y, identity,
-                            batch_pred_x, encoder_u)
-            F = _update_cov(F, eta, 
-                            batch_pred_y, identity)
-    
-        return  S@ compute_inverse(F,0.)
 
 
 
@@ -208,9 +121,13 @@ class RepLearner(nn.Module):
                         lr_theta= 0.001,
                         lr_psi= 0.001,
                         n_opt_v= 10,
-                        n_opt_pred=10,
+                        n_opt_pred=1,
+                        n_accum_pred=10,
                         update_mode_cold_start=False,
-                        full_solve_v=False):
+                        full_solve_v=False,
+                        params_Q = {"update_rule":"exact_inverse", 
+                                    "momentum": False,
+                                    "kwargs":{}}):
 
         super().__init__()
         # Representations
@@ -234,6 +151,7 @@ class RepLearner(nn.Module):
         
         self.n_opt_v = n_opt_v
         self.n_opt_pred = n_opt_pred
+        self.n_accum_pred= n_accum_pred
 
         # Optimizers
         self.opt_u = torch.optim.SGD(self.encoder_u.parameters(), lr=lr_theta)
@@ -243,6 +161,52 @@ class RepLearner(nn.Module):
         self.running_grad = None
         self.first_update = True
         self.full_solve_v = full_solve_v
+        self.sym_cov = None
+        self.params_Q = params_Q
+
+    def update_cov(self,data_gen, sym_cov):
+        with torch.no_grad():
+
+            #for iter_pred in range(self.n_opt_pred):
+            S = torch.zeros_like(self.S)
+            F = torch.zeros_like(self.F)
+            for iter_accum in range(self.n_accum_pred):
+                batch_pred_x, batch_pred_y = next(data_gen)
+                u_code = self.encoder_u(batch_pred_x)
+                v_code = self.encoder_u(batch_pred_y)
+                eta = 1./(iter_accum+1)
+                if sym_cov:
+                    S = _update_cov(S, eta, v_code)
+                else:
+                    S = _update_cov(S, eta, v_code, u_code)
+                F = _update_cov(F, eta, u_code)
+
+
+            if not self.update_mode_cold_start or self.first_update:
+                self.S = S
+                self.F = F
+                self.first_update = False
+            else:
+                self.S  = (1-self.eta)*self.S + self.eta*S
+                self.F  = (1-self.eta)*self.F + self.eta*F
+
+        return S, F
+            
+    def update_linear_predictor(self,data_gen):
+
+        with torch.no_grad():
+            for iter_opt_pred in range(self.n_opt_pred):
+                S,F = self.update_cov(data_gen, sym_cov=self.sym_cov)
+                if self.params_Q["momentum"]:
+                    F = self.F
+                self.update_Q(F)
+
+
+    def update_Q(self, F):
+        if self.params_Q["update_rule"]=="exact_inverse":
+            self.Q = exact_inverse(F, self.reg_c)
+        elif self.params_Q["update_rule"]=="newton_update":
+            self.Q = newton_update(self.Q, F, self.reg_c, **self.params_Q["kwargs"])
 
 
     def forward_backward(self, data_gen):
@@ -306,7 +270,7 @@ class RepLearner(nn.Module):
         self.S.copy_(torch.zeros(self.k, self.k, device=self.S.device))
         self.F.copy_(torch.zeros(self.k, self.k, device=self.F.device))
         self.first_update = True
-
+        self.sym_cov =True
 
 class CSEgrad(RepLearner):
     def __init__(self, encoder_u, encoder_v, **kwargs):
@@ -323,23 +287,32 @@ class CSEgrad(RepLearner):
         discriminant = Corr-self.reg_c
         return torch.clamp(discriminant, min=0)
     
-        
-
-    def forward_backward(self, data_gen):
-        """
-        One full iteration of SCEgrad using fresh batches.
-        """
-
-        # --- UPDATE PSI (encoder_v) ---
 
 
 
-
-
+    def update_encoder_v(self, data_gen):
 
         if self.full_solve_v:
-            self.encoder_v.weight.data=lin_reg_full_solve(data_gen, self.n_opt_v, self.encoder_u)
+            with torch.no_grad():
+                for iter_pred in range(self.n_opt_v):
+                    batch_pred_x, batch_pred_y = next(data_gen)
+                    eta = 1./(iter_pred+1)
+                    if iter_pred==0:
+                        u = self.encoder_u(batch_pred_x)
+                        k, d = u.shape[1], batch_pred_y.shape[1]
+                        S = torch.zeros(k,d, device=u.device)
+                        F = torch.zeros(d,d, device=u.device)
+
+
+                    S = _update_cov(S, eta, 
+                                    u,batch_pred_y)
+                    F = _update_cov(F, eta, 
+                                    batch_pred_y)
+            
+                self.encoder_v.weight.data= S@ exact_inverse(F,0.)            
+
             loss_reg = 0.*torch.norm(self.encoder_v.weight.data)
+            
         else:
             for n in range(self.n_opt_v):
                 batch_reg_x, batch_reg_y = next(data_gen)
@@ -353,38 +326,10 @@ class CSEgrad(RepLearner):
                 loss_reg = compute_l_reg(u_fixed, v_active)
                 loss_reg.backward()
                 self.opt_v.step()
+        return loss_reg
 
+    def update_encoder_u(self, data_gen):
 
-        # --- UPDATE Q, S (LinPred) ---
-        with torch.no_grad():
-
-            S,F = update_cov(data_gen, self.encoder_u, self.encoder_v, 
-                self.S, self.F, self.eta, 
-                self.n_opt_pred, 
-                cold_start=True,
-                symmetric_cov_uv=True,
-                EMA=False)
-            if self.update_mode_cold_start or self.first_update:
-                self.S = S
-                self.F = F
-                self.first_update = False
-            else:
-                self.S  = (1-self.eta)*self.S + self.eta*S
-                self.F  = (1-self.eta)*self.F + self.eta*F
-
-            # for iter_pred in range(self.n_opt_pred):
-            #     batch_pred_x, batch_pred_y = next(data_gen)
-            #     self.S = update_cov(self.S, self.eta, 
-            #                         batch_pred_y, self.encoder_v)
-            #     self.F = update_cov(self.F, self.eta, 
-            #                         batch_pred_x, self.encoder_u)
-
-            self.Q = compute_inverse(self.F, self.reg_c)
-
-
-
-
-        # --- UPDATE THETA (encoder_u) ---
         batch_cse_x, batch_cse_y = next(data_gen)
         self.opt_u.zero_grad()
         u_active = self.encoder_u(batch_cse_x)
@@ -399,6 +344,28 @@ class CSEgrad(RepLearner):
         grad_norm = torch.norm(self.encoder_u.weight.grad)
         running_grad_norm = torch.norm(self.running_grad)
         self.opt_u.step()
+
+        return loss_aux, grad_norm, running_grad_norm, u_active
+
+    def forward_backward(self, data_gen):
+        """
+        One full iteration of SCEgrad using fresh batches.
+        """
+
+        # --- UPDATE PSI (encoder_v) ---
+
+
+        loss_reg = self.update_encoder_v(data_gen)
+
+
+        # --- UPDATE Q, S (LinPred) ---
+
+        self.update_linear_predictor(data_gen)
+
+
+
+        # --- UPDATE THETA (encoder_u) ---
+        loss_aux, grad_norm, running_grad_norm, u_active = self.update_encoder_u(data_gen)
 
         loss_CSE = compute_l_CSE(self.Q ,self.S, u_active.detach(), self.reg_c)
 
@@ -419,6 +386,7 @@ class SemiGradSSL(RepLearner):
         super().__init__(encoder_u, encoder_v, **kwargs)
 
         self.encoder_v = self.encoder_u
+        self.sym_cov =False
 
     def filter(self, data_gen):
         Sx = data_gen.info["S_1"]
@@ -448,36 +416,8 @@ class SemiGradSSL(RepLearner):
         
 
         # --- UPDATE Q, S (LinPred) ---
-        with torch.no_grad():
-            # for iter_pred in range(self.n_opt_pred):
-            #     batch_pred_x, batch_pred_y = next(data_gen)
-            #     self.S = update_cov(self.S, self.eta, 
-            #                         batch_pred_x, self.encoder_u,
-            #                         batch_pred_y, self.encoder_v)
-            #     self.F = update_cov(self.F, self.eta, 
-            #                         batch_pred_x, self.encoder_u)
 
-            # self.S, self.F = update_cov(data_gen, self.encoder_u, self.encoder_v, 
-            #     self.S,self.F, self.eta, 
-            #     self.n_opt_pred, 
-            #     cold_start=self.update_mode_cold_start,
-            #     symmetric_cov_uv=False,
-            #     EMA=self.update_mode_ema)
-
-            S,F = update_cov(data_gen, self.encoder_u, self.encoder_v, 
-                            self.S, self.F, self.eta, 
-                            self.n_opt_pred, 
-                            cold_start=True,
-                            symmetric_cov_uv=False,
-                            EMA=False)
-            if self.update_mode_cold_start or self.first_update:
-                self.S = S
-                self.F = F
-                self.first_update=  False
-            else:
-                self.S  = (1-self.eta)*self.S + self.eta*S
-                self.F  = (1-self.eta)*self.F + self.eta*F
-            self.Q = compute_inverse(self.F, self.reg_c)
+        self.update_linear_predictor(data_gen)
         # --- UPDATE THETA (encoder_u) ---
         batch_cse_x, batch_cse_y = next(data_gen)
         self.opt_u.zero_grad()

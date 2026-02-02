@@ -41,5 +41,6 @@ learner:
     reg_c: .1              # Regularization constant c
     n_opt_v: 1
     n_opt_pred: 1
+    n_accum_pred: 1
     update_mode_cold_start: False
     full_solve_v: True
