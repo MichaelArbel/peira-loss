@@ -7,24 +7,41 @@ class LinearCCADataGenerator:
     def __init__(self, d1=50, d2=50, k=10, sigma=0.1, batch_size=64, 
                 device='cpu',
                 dtype=torch.float32,
-                deterministic=False):
+                deterministic=False,
+                empirical=False,
+                sign_flip=False):
+
         self.d1 = d1
         self.d2 = d2
         self.k = k
         self.sigma = sigma
         self.batch_size = batch_size
         self.device = device
+        self.dtype = dtype
         self.deterministic = deterministic
+        self.empirical = empirical
+        self.sign_flip = sign_flip
 
         # Pre-define fixed projection matrices (Ground Truth)
         # These define the linear relationship that the CCA should find.
-        self.A1, self.A2, self.info = generate_correlated_matrices(k, d1, d2, sigma, device, dtype)
+        self.A1, self.A2, self.info = generate_correlated_matrices(k, d1, d2, sigma, 
+                                                                    device, dtype, 
+                                                                    sign_flip=self.sign_flip)
 
         #self.A1 = torch.randn(k, d1, device=device, dtype=dtype)
         #self.A2 = torch.randn(k, d2, device=device, dtype=dtype)
         if deterministic:
-            z, eps_1, eps_2 = generate_deterministic_data(b=self.batch_size, d=[self.k, self.d1, self.d2], 
+            if empirical:
+                z = torch.randn(self.batch_size, self.k, device=self.device, dtype=self.dtype)
+                eps_1 = torch.randn(self.batch_size, self.d1, device=self.device, dtype=self.dtype)
+                eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=self.dtype)
+
+            
+            else:
+
+                z, eps_1, eps_2 = generate_deterministic_data(b=self.batch_size, d=[self.k, self.d1, self.d2], 
                                                           device=device, dtype=dtype)
+
             self.data = self.gen_data(z,eps_1,eps_2)
 
 
@@ -38,9 +55,9 @@ class LinearCCADataGenerator:
         if self.deterministic:
             return self.data
 
-        z = torch.randn(self.batch_size, self.k, device=self.device, dtype=dtype)
-        eps_1 = torch.randn(self.batch_size, self.d1, device=self.device, dtype=dtype)
-        eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=dtype)
+        z = torch.randn(self.batch_size, self.k, device=self.device, dtype=self.dtype)
+        eps_1 = torch.randn(self.batch_size, self.d1, device=self.device, dtype=self.dtype)
+        eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=self.dtype)
         return self.gen_data(z,eps_1,eps_2)
         # 2. Project to high-dimensional views
         
@@ -61,20 +78,21 @@ class LinearCCADataGenerator:
 
 
 
-def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype):
+def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, sign_flip=False):
     """
     Generates A1 and A2 such that svdvals(A2 @ A1.T) == target_svs
     """
     # Ensure target_svs is a double tensor
     S_vals_1 = torch.logspace(0,-4, steps=dim_z, device =device, dtype=dtype)
-    S_vals_2 = S_vals_1#torch.logspace(-3,0, steps=dim_z, device =device, dtype=dtype)
+    S_vals_2 = 1.*S_vals_1#torch.logspace(-3,0, steps=dim_z, device =device, dtype=dtype)
 
     corr = filter(S_vals_1,sigma)*filter(S_vals_2,sigma)
     _, indices = torch.sort(corr, descending=True)
 
     S_vals_1 = S_vals_1[indices]
     S_vals_2 = S_vals_2[indices]
-
+    if sign_flip:
+        S_vals_2[1:] = -S_vals_2[1:]  
 
     k = len(S_vals_1)
     

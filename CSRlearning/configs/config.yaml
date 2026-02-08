@@ -28,6 +28,7 @@ data:
     sigma: 0.1              # Noise level epsilon
     batch_size: 512
     deterministic: True
+    sign_flip: False
 
 
 # SCEgrad Hyperparameters
@@ -35,8 +36,8 @@ learner:
   name: "algorithms.CSEgrad"  # CSEgrad or SemiGradSSL
   kwargs:
     latent_dim: 30          # The size of representations u and v
-    lr_theta: 1.         # Learning rate for U_theta
-    lr_psi: 0.1           # Learning rate for V_psi
+    lr_u: 1.         # Learning rate for U_theta
+    lr_v: 0.1           # Learning rate for V_psi
     eta: 1.              # Learning rate for S update (LinPred)
     reg_c: .1              # Regularization constant c
     n_opt_v: 1
@@ -44,3 +45,10 @@ learner:
     n_accum_pred: 1
     update_mode_cold_start: False
     full_solve_v: True
+    params_Q: 
+      update_rule: "exact_inverse"
+      momentum: False
+      cold_start: True
+      kwargs: null
+
+
