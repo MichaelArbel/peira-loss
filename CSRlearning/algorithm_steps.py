@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 from algorithms import (
-    compute_auxiliary_loss,
     compute_cse_objective,
     compute_regression_loss,
     compute_running_average_field,
@@ -13,7 +12,7 @@ from evaluation import (
     compute_semigrad_spectrum,
     compute_unconstrained_cca_spectrum,
 )
-from implicit_linear_predictor import IterativeDiffRegressor
+from implicit_linear_predictor import IterativeDiffRegressor, MomentumRegressor, auxiliary_loss
 from linear_predictors import PDInverseModule, solve_with_cholesky
 
 
@@ -58,6 +57,9 @@ class CanonicalSubspaceEmbeddingExactAlgorithm(AlgorithmStep):
         loss = -0.5 * torch.sum((inter_cov + inter_cov.t()) * inv_cov)
         loss = loss + 0.5 * m.reg_c * (torch.sum(v_active ** 2) + torch.sum(u_active ** 2)) / B
         loss.backward()
+        #print(lol)
+
+
         m.running_grad = compute_running_average_field(m.running_grad, m.encoder_u.weight.grad, m.eta)
         grad_norm = torch.norm(m.encoder_u.weight.grad)
         running_grad_norm = torch.norm(m.running_grad)
@@ -80,7 +82,7 @@ class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
     def __init__(self):
         super().__init__()
         self.regressor = None
-        self.rep_loss = compute_auxiliary_loss
+        self.rep_loss = auxiliary_loss
         self.inverse = PDInverseModule()
 
     def configure_model(self, model):
@@ -92,6 +94,14 @@ class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
             reg=model.reg_c,
         )
 
+
+        # self.regressor = MomentumRegressor(
+        #     torch.zeros(model.k, model.k),
+        #     torch.zeros(model.k, model.k),
+        #     reg=model.reg_c,
+        #     eta=model.eta
+        # )
+
     def compute_spectrum(self, model, data_gen):
         return compute_cse_spectrum(model, data_gen)
 
@@ -102,7 +112,7 @@ class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
                 batch_cse_x, batch_cse_y = next(data_gen)
                 X = m.encoder_u(batch_cse_x)
                 Y = m.encoder_v(batch_cse_y)
-            pred, adj_pred = self.regressor(X, Y)
+            pred, adj_pred = self.regressor(X.detach(), Y.detach())
 
         m.opt_u.zero_grad()
         m.opt_v.zero_grad()
@@ -117,6 +127,44 @@ class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
         )
 
         loss_aux.backward()
+        
+
+        # grad_U =1.* m.encoder_u.weight.grad
+        # grad_V =1.* m.encoder_v.weight.grad
+        
+
+        # m.opt_u.zero_grad()
+        # m.opt_v.zero_grad()
+
+        # u_active = m.encoder_u(batch_cse_x)
+        # v_active = m.encoder_v(batch_cse_y)
+        # B = u_active.shape[0]
+        # inter_cov = torch.einsum("mk,ml->kl"  ,v_active,u_active)/B
+        # cov_u = torch.einsum("mk,ml->kl", u_active,u_active)/B
+        # cov_v =torch.einsum("mk,ml->kl", v_active,v_active)/B
+        
+        # cov = cov_v+ cov_u + m.reg_c*torch.eye(cov_u.shape[0], device=cov_u.device, dtype=cov_u.dtype)
+        # inv_cov = self.inverse(cov)
+        # loss = -0.5*torch.sum((inter_cov + inter_cov.t())*inv_cov)   
+        # loss = loss + 0.5*m.reg_c*(torch.sum(v_active**2) + torch.sum(u_active**2))/B
+
+
+
+        # loss.backward()
+
+        # grad_UU =1.* m.encoder_u.weight.grad
+        # grad_VV =1.* m.encoder_v.weight.grad        
+
+
+        # print(f"grad_U err: {torch.norm(grad_UU-grad_U)}")
+        # print(f"grad_U err: {torch.norm(grad_VV-grad_V)}")
+
+        # print(lol)
+
+
+
+
+
 
         m.running_grad = compute_running_average_field(m.running_grad, m.encoder_u.weight.grad, m.eta)
         grad_norm = torch.norm(m.encoder_u.weight.grad)
@@ -140,7 +188,7 @@ class CanonicalSubspaceEmbeddingBilevelJointAlgorithm(AlgorithmStep):
     def __init__(self):
         super().__init__()
         self.regressor = None
-        self.rep_loss = compute_auxiliary_loss
+        self.rep_loss = auxiliary_loss
 
     def configure_model(self, model):
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=model.eta)

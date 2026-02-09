@@ -77,12 +77,12 @@ parent_log_dir="../data/outputs/debug"
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
                 learner.name="learners.CSELearningModel"\
-                learner.kwargs.algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm"\
+                learner.kwargs.algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
                 task.init_scale=0.0001\
                 data.kwargs.deterministic=True\
                 learner.kwargs.reg_c=0.1\
-                learner.kwargs.lr_u=.01\
-                learner.kwargs.lr_v=.01\
+                learner.kwargs.lr_u=.1\
+                learner.kwargs.lr_v=.1\
                 learner.kwargs.eta=1.\
                 learner.kwargs.n_opt_pred=1\
                 data.kwargs.sign_flip=False\
