@@ -14,6 +14,7 @@ from learners import CSELearningModel
 class AlgorithmTestConfig:
     algorithm_name: str
     learner_kwargs: dict
+    init: dict
 
 
 def set_all_seeds(seed: int) -> None:
@@ -51,10 +52,11 @@ def run_algorithm_test(
     seed: int,
 ) -> Dict[str, float]:
     set_all_seeds(seed)
-
+    d1=20
+    d2=20
     data_gen = LinearCCADataGenerator(
-        d1=20,
-        d2=20,
+        d1=d1,
+        d2=d2,
         k=10,
         sigma=0.1,
         batch_size=512,
@@ -64,8 +66,8 @@ def run_algorithm_test(
         sign_flip=False,
     )
 
-    encoder_u = torch.nn.Linear(20, cfg.learner_kwargs["latent_dim"], bias=False)
-    encoder_v = torch.nn.Linear(20, cfg.learner_kwargs["latent_dim"], bias=False)
+    encoder_u = torch.nn.Linear(d1, cfg.learner_kwargs["latent_dim"], bias=False)
+    encoder_v = torch.nn.Linear(d2, cfg.learner_kwargs["latent_dim"], bias=False)
 
     model = CSELearningModel(
         encoder_u=encoder_u,
@@ -77,8 +79,8 @@ def run_algorithm_test(
     if dtype == torch.float64:
         model = model.double()
 
-    model.reset_parameters(mode=cfg.learner_kwargs.get("init_mode", "near_zero"),
-                          scale=cfg.learner_kwargs.get("init_scale", 1e-4))
+    model.reset_parameters(mode=cfg.init.get("init_mode", "near_zero"),
+                          scale=cfg.init.get("init_scale", 1e-4))
 
     last_metrics = None
     for step in range(iterations):
@@ -93,8 +95,7 @@ def run_algorithm_test(
             align1, align2 = alignment[0].item(), alignment[1].item()
             print(
                 f"[{cfg.algorithm_name}] step={step} "
-                f"s=({s1:.4e},{s2:.4e}) "
-                f"t=({ts1:.4e},{ts2:.4e}) "
+                f"s=({abs(s1-ts1):.4e},{abs(s2-ts2):.4e}) "
                 f"align=({align1:.4f},{align2:.4f}) "
                 f"loss={metrics.get('loss_CSE', math.nan):.4e}"
             )
@@ -122,7 +123,7 @@ def run_algorithm_test(
 def default_algorithm_configs() -> List[AlgorithmTestConfig]:
     base_kwargs = {
         "latent_dim": 30,
-        "lr_u": 1.0,
+        "lr_u": 0.1,
         "lr_v": 0.1,
         "eta": 1.0,
         "reg_c": 0.1,
@@ -137,6 +138,8 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
             "cold_start": True,
             "kwargs": None,
         },
+    }
+    init = {  
         "init_mode": "near_zero",
         "init_scale": 1e-4,
     }
@@ -145,22 +148,27 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
         AlgorithmTestConfig(
             algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm",
             learner_kwargs=dict(base_kwargs),
+            init = init,
         ),
         AlgorithmTestConfig(
             algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm",
             learner_kwargs=dict(base_kwargs),
+            init = init,
         ),
         AlgorithmTestConfig(
             algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
             learner_kwargs=dict(base_kwargs),
+            init = init,
         ),
         AlgorithmTestConfig(
             algorithm_name="algorithm_steps.SemiGradientSSLAlgorithm",
             learner_kwargs=dict(base_kwargs),
+            init = init,
         ),
         AlgorithmTestConfig(
             algorithm_name="algorithm_steps.UnconstrainedCCAAlgorithm",
             learner_kwargs=dict(base_kwargs),
+            init = init,
         ),
     ]
 
