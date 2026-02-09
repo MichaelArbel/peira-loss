@@ -72,13 +72,13 @@ class CSELearningModel(nn.Module):
         self.opt_u = torch.optim.SGD(self.encoder_u.parameters(), lr=lr_u)
         self.opt_v = torch.optim.SGD(self.encoder_v.parameters(), lr=lr_v)
         self.scheduler_u = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.opt_u, t_max=t_max, eta_min=0.000001
+            self.opt_u, T_max=t_max, eta_min=0.000001
         )
         self.scheduler_v = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.opt_v, t_max=t_max, eta_min=0.000001
+            self.opt_v, T_max=t_max, eta_min=0.000001
         )
         self.scheduler_eta = partial(
-            cosine_momentum_schedule, t_max=t_max, m_start=self.eta, m_end=0.001
+            cosine_momentum_schedule, T_max=t_max, m_start=self.eta, m_end=0.001
         )
 
         self.update_mode_cold_start = update_mode_cold_start

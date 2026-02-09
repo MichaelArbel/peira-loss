@@ -2,8 +2,8 @@ import torch
 import math
 
 
-def cosine_momentum_schedule(epoch, t_max, m_start, m_end):
-    return m_end + 0.5 * (m_start - m_end) * (1 + math.cos(math.pi * epoch / t_max))
+def cosine_momentum_schedule(epoch, T_max, m_start, m_end):
+    return m_end + 0.5 * (m_start - m_end) * (1 + math.cos(math.pi * epoch / T_max))
 
 
 def compute_regression_loss(u, v):
