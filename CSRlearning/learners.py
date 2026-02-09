@@ -92,7 +92,8 @@ class CSELearningModel(nn.Module):
             params_q["kwargs"] = {}
 
         algorithm_class = instantiate(algorithm_name)
-        self.algorithm = algorithm_class(self)
+        self.algorithm = algorithm_class()
+        self.algorithm.configure_model(self)
 
     def compute_target_spectrum(self, data_gen):
         Sx = data_gen.info["S_1"]
@@ -159,10 +160,10 @@ class CSELearningModel(nn.Module):
         raise NotImplementedError
 
     def forward_backward(self, data_gen):
-        return self.algorithm.step(data_gen)
+        return self.algorithm.step(self, data_gen)
 
     def compute_spectrum(self, data_gen):
-        return self.algorithm.compute_spectrum(data_gen)
+        return self.algorithm.compute_spectrum(self, data_gen)
 
     def compute_alignment(self, data_gen, num_batches=10):
         return compute_alignment_metrics(self, data_gen, num_batches=num_batches)

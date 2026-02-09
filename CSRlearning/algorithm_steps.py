@@ -18,27 +18,29 @@ from linear_predictors import PDInverseModule, solve_with_cholesky
 
 
 class AlgorithmStep(nn.Module):
-    def __init__(self, model):
+    def __init__(self):
         super().__init__()
-        self.model = model
 
-    def compute_spectrum(self, data_gen):
+    def configure_model(self, model):
+        pass
+
+    def compute_spectrum(self, model, data_gen):
         raise NotImplementedError
 
-    def step(self, data_gen):
+    def step(self, model, data_gen):
         raise NotImplementedError
 
 
 class CanonicalSubspaceEmbeddingExactAlgorithm(AlgorithmStep):
-    def __init__(self, model):
-        super().__init__(model)
+    def __init__(self):
+        super().__init__()
         self.inverse = PDInverseModule()
 
-    def compute_spectrum(self, data_gen):
-        return compute_cse_spectrum(self.model, data_gen)
+    def compute_spectrum(self, model, data_gen):
+        return compute_cse_spectrum(model, data_gen)
 
-    def step(self, data_gen):
-        m = self.model
+    def step(self, model, data_gen):
+        m = model
         batch_cse_x, batch_cse_y = next(data_gen)
 
         m.opt_u.zero_grad()
@@ -75,23 +77,26 @@ class CanonicalSubspaceEmbeddingExactAlgorithm(AlgorithmStep):
 
 
 class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
-    def __init__(self, model):
-        super().__init__(model)
-        optimizer_ctor = lambda params: torch.optim.SGD(params, lr=self.model.eta)
-        self.regressor = IterativeDiffRegressor(
-            torch.zeros(self.model.k, self.model.k),
-            torch.zeros(self.model.k, self.model.k),
-            optimizer_ctor=optimizer_ctor,
-            reg=self.model.reg_c,
-        )
+    def __init__(self):
+        super().__init__()
+        self.regressor = None
         self.rep_loss = compute_auxiliary_loss
         self.inverse = PDInverseModule()
 
-    def compute_spectrum(self, data_gen):
-        return compute_cse_spectrum(self.model, data_gen)
+    def configure_model(self, model):
+        optimizer_ctor = lambda params: torch.optim.SGD(params, lr=model.eta)
+        self.regressor = IterativeDiffRegressor(
+            torch.zeros(model.k, model.k),
+            torch.zeros(model.k, model.k),
+            optimizer_ctor=optimizer_ctor,
+            reg=model.reg_c,
+        )
 
-    def step(self, data_gen):
-        m = self.model
+    def compute_spectrum(self, model, data_gen):
+        return compute_cse_spectrum(model, data_gen)
+
+    def step(self, model, data_gen):
+        m = model
         for _ in range(m.n_opt_pred):
             with torch.no_grad():
                 batch_cse_x, batch_cse_y = next(data_gen)
@@ -132,22 +137,25 @@ class CanonicalSubspaceEmbeddingBilevelAlgorithm(AlgorithmStep):
 
 
 class CanonicalSubspaceEmbeddingBilevelJointAlgorithm(AlgorithmStep):
-    def __init__(self, model):
-        super().__init__(model)
-        optimizer_ctor = lambda params: torch.optim.SGD(params, lr=self.model.eta)
-        self.regressor = IterativeDiffRegressor(
-            torch.zeros(self.model.k, self.model.k),
-            torch.zeros(self.model.k, self.model.k),
-            optimizer_ctor=optimizer_ctor,
-            reg=self.model.reg_c,
-        )
+    def __init__(self):
+        super().__init__()
+        self.regressor = None
         self.rep_loss = compute_auxiliary_loss
 
-    def compute_spectrum(self, data_gen):
-        return compute_cse_spectrum(self.model, data_gen)
+    def configure_model(self, model):
+        optimizer_ctor = lambda params: torch.optim.SGD(params, lr=model.eta)
+        self.regressor = IterativeDiffRegressor(
+            torch.zeros(model.k, model.k),
+            torch.zeros(model.k, model.k),
+            optimizer_ctor=optimizer_ctor,
+            reg=model.reg_c,
+        )
 
-    def step(self, data_gen):
-        m = self.model
+    def compute_spectrum(self, model, data_gen):
+        return compute_cse_spectrum(model, data_gen)
+
+    def step(self, model, data_gen):
+        m = model
         m.opt_u.zero_grad()
         m.opt_v.zero_grad()
         self.regressor.optimizer.zero_grad()
@@ -189,21 +197,26 @@ class CanonicalSubspaceEmbeddingBilevelJointAlgorithm(AlgorithmStep):
 
 
 class SemiGradientSSLAlgorithm(AlgorithmStep):
-    def __init__(self, model):
-        super().__init__(model)
-        self.model.encoder_v = self.model.encoder_u
-        self.model.sym_cov = False
-        self.predictor = nn.Linear(self.model.k, self.model.k, bias=False)
-        self.opt_pred = torch.optim.SGD(self.predictor.parameters(), lr=self.model.eta)
+    def __init__(self):
+        super().__init__()
+        self.predictor = None
+        self.opt_pred = None
+        self.scheduler_pred = None
+
+    def configure_model(self, model):
+        model.encoder_v = model.encoder_u
+        model.sym_cov = False
+        self.predictor = nn.Linear(model.k, model.k, bias=False)
+        self.opt_pred = torch.optim.SGD(self.predictor.parameters(), lr=model.eta)
         self.scheduler_pred = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.opt_pred, t_max=self.model.t_max, eta_min=0.000001
+            self.opt_pred, t_max=model.t_max, eta_min=0.000001
         )
 
-    def compute_spectrum(self, data_gen):
-        return compute_semigrad_spectrum(self.model, data_gen)
+    def compute_spectrum(self, model, data_gen):
+        return compute_semigrad_spectrum(model, data_gen)
 
-    def step(self, data_gen):
-        m = self.model
+    def step(self, model, data_gen):
+        m = model
 
         if m.full_solve_v:
             with torch.no_grad():
@@ -251,11 +264,11 @@ class SemiGradientSSLAlgorithm(AlgorithmStep):
 
 
 class UnconstrainedCCAAlgorithm(AlgorithmStep):
-    def compute_spectrum(self, data_gen):
-        return compute_unconstrained_cca_spectrum(self.model, data_gen)
+    def compute_spectrum(self, model, data_gen):
+        return compute_unconstrained_cca_spectrum(model, data_gen)
 
-    def step(self, data_gen):
-        m = self.model
+    def step(self, model, data_gen):
+        m = model
         batch_cse_x, batch_cse_y = next(data_gen)
 
         m.opt_u.zero_grad()
