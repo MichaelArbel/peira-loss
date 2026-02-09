@@ -33,8 +33,9 @@ data:
 
 # SCEgrad Hyperparameters
 learner:
-  name: "algorithms.CSEgrad"  # CSEgrad or SemiGradSSL
+  name: "learners.CSELearningModel"
   kwargs:
+    algorithm_name: "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm"
     latent_dim: 30          # The size of representations u and v
     lr_u: 1.         # Learning rate for U_theta
     lr_v: 0.1           # Learning rate for V_psi
@@ -45,10 +46,8 @@ learner:
     n_accum_pred: 1
     update_mode_cold_start: False
     full_solve_v: True
-    params_Q: 
+    params_q: 
       update_rule: "exact_inverse"
       momentum: False
       cold_start: True
       kwargs: null
-
-

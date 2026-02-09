@@ -1,14 +1,21 @@
 import torch
 import torch.nn as nn
 
-import torch
 from utils import instantiate, set_seed
-from algorithms import CSEgrad, compute_alignment_func
+from evaluation import compute_alignment
+from experiment_logging import (
+    log_alignment_artifacts,
+    log_data_info,
+    log_epoch_metrics,
+    log_target_spectrum,
+    log_vector_field_artifacts,
+    log_vector_field_metrics,
+)
 import numpy as np
 import time
 
 # 3. The Trainer Class
-class CCATrainer:
+class CCAExperimentRunner:
     def __init__(self, cfg, logger):
         
         self.logger = logger
@@ -22,10 +29,15 @@ class CCATrainer:
         self.view2 = nn.Linear(cfg.data.kwargs.d2, cfg.learner.kwargs.latent_dim, bias=False)
 
       # Algorithmic Module
-        self.rep_learner = instantiate(cfg.learner.name)(self.view1, 
-                                                         self.view2, 
-                                                         T_max=cfg.task.epochs,
-                                                         **cfg.learner.kwargs)
+        learner_kwargs = dict(cfg.learner.kwargs)
+        algorithm_name = learner_kwargs.pop("algorithm_name")
+        self.rep_learner = instantiate(cfg.learner.name)(
+            self.view1,
+            self.view2,
+            algorithm_name=algorithm_name,
+            t_max=cfg.task.epochs,
+            **learner_kwargs,
+        )
 
 
         self.rep_learner = self.rep_learner.to(self.device)
@@ -52,17 +64,12 @@ class CCATrainer:
 
 
                 # Log metrics for every round
-                self.logger.log_metrics({
-                    **metrics,
-                    "epoch": epoch,
-                }, log_name= "metrics")
+                log_epoch_metrics(self.logger, metrics, epoch)
                 
             alignment_dict = self.rep_learner.compute_alignment(self.loader)
             # Save artifacts at the end
 
-            self.logger.log_artifacts({**alignment_dict,
-                                       "epoch":epoch}, f"alignment_{epoch}",
-                                      artifact_type= "pickle")
+            log_alignment_artifacts(self.logger, alignment_dict, epoch)
 
     def run_vector_field_experiment(self):
         
@@ -74,11 +81,9 @@ class CCATrainer:
                 k: (v.cpu().numpy() if torch.is_tensor(v) else v) 
                 for k, v in self.loader.info.items()
             }
-        self.logger.log_artifacts(info, f"data_info",
-                                  artifact_type= "pickle")
+        log_data_info(self.logger, info)
         _, target_spectrum = self.rep_learner.compute_spectrum(self.loader)
-        self.logger.log_artifacts(target_spectrum.cpu().detach(), f"target_spectrum",
-                                  artifact_type= "pickle")
+        log_target_spectrum(self.logger, target_spectrum.cpu().detach())
         avg_time = 0.
         for step in range(self.cfg.steps_per_epoch):
             
@@ -89,7 +94,7 @@ class CCATrainer:
 
                 W = self.rep_learner.encoder_u.weight.t()@self.rep_learner.encoder_u.weight
 
-                alignment = compute_alignment_func(W, self.loader.info["P"])
+                alignment = compute_alignment(W, self.loader.info["P"])
             s1, s2 = spectrum[0],spectrum[1]
             ts1, ts2 = target_spectrum[0], target_spectrum[1]
             align1, align2 = alignment[0], alignment[1]
@@ -100,33 +105,16 @@ class CCATrainer:
             end = time.time()
             avg_time = (1-1./(step+1)) * avg_time + (1./(step+1))*(time.time()- start)
             #if np.mod(step,10)==0:
-            self.logger.log_metrics({
-                    **metrics,
-                    "iter": step,
-                    "singval_1": s1.item(),
-                    "singval_2": s2.item(),
-                    "t_singval_1": ts1.item(),
-                    "t_singval_2": ts2.item(),
-                    "align_1": align1.item(),
-                    "align_2": align2.item(),
-                    "avg_time": avg_time
-                }, log_name= "metrics")
+            log_vector_field_metrics(self.logger, metrics, step, s1, s2, ts1, ts2, align1, align2, avg_time)
 
             if np.mod(step,100)==0:
-                self.logger.log_artifacts({"alignment": alignment.cpu().numpy(), 
-                                           "spectrum":spectrum.cpu().numpy(), 
-                                           "iter": step}, 
-                                           f"alignments_{step}",
-                                            artifact_type= "pickle")
+                log_vector_field_artifacts(self.logger, alignment, spectrum, step)
 
             if np.mod(step,10)==0:
                 print(f"step: {step}")
                 print(f"spectrum: {(s1.item(),s2.item())}")
                 print(f"target spectrum: {(ts1.item(),ts2.item())}")
                 print(f"alignment: {(align1.item(), align2.item())}")
-                print(f"vector field norm: {metrics["running_grad_norm"]}")
-                print(f"objective: {metrics["loss_CSE"]}")
+                print(f"vector field norm: {metrics['running_grad_norm']}")
+                print(f"objective: {metrics['loss_CSE']}")
                 print(f"avg time: {avg_time}")
-
-
-

@@ -467,7 +467,7 @@ def warm_start_first_oder(D, L, F, c, eta=0.01):
 
 
 
-def update_cov_old(data_gen, encoder_u, encoder_v, 
+def update_covariance_old(data_gen, encoder_u, encoder_v, 
                 S_0,F_0, eta_0, 
                 n_opt_pred, 
                 cold_start=False,
@@ -495,18 +495,18 @@ def update_cov_old(data_gen, encoder_u, encoder_v,
             batch_pred_x, batch_pred_y = next(data_gen)
             eta = eta_step(iter_pred)
             if symmetric_cov_uv:
-                S = _update_cov_old(S, eta, 
+                S = _update_covariance_old(S, eta, 
                                 batch_pred_y, encoder_v)
             else:
-                S = _update_cov_old(S, eta, 
+                S = _update_covariance_old(S, eta, 
                                 batch_pred_x, encoder_u,
                                 batch_pred_y, encoder_v)
-            F = _update_cov_old(F, eta, 
+            F = _update_covariance_old(F, eta, 
                                 batch_pred_x, encoder_u)
     return S,F
 
 
-def _update_cov_old(S, eta, x_b, encoder_u, y_b = None, encoder_v=None):
+def _update_covariance_old(S, eta, x_b, encoder_u, y_b = None, encoder_v=None):
 
     with torch.no_grad():
 
@@ -541,10 +541,10 @@ def _update_cov_old(S, eta, x_b, encoder_u, y_b = None, encoder_v=None):
 #                 F = torch.zeros(d,d, device=u.device)
 
 
-#             S = _update_cov_old(S, eta, 
+#             S = _update_covariance_old(S, eta, 
 #                             batch_pred_y, identity,
 #                             batch_pred_x, encoder_u)
-#             F = _update_cov_old(F, eta, 
+#             F = _update_covariance_old(F, eta, 
 #                             batch_pred_y, identity)
     
 #         return  S@ exact_inverse(F,0.)

@@ -20,7 +20,8 @@ parent_log_dir="../data/outputs/deterministic_9"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
-#                 learner.name="algorithms.CSEgrad","algorithms.SemiGradSSL"\
+#                 learner.name="learners.CSELearningModel"\
+#                 learner.kwargs.algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm","algorithm_steps.SemiGradientSSLAlgorithm"\
 #                 task.init_seed=0,1,2,3,4\
 #                 task.init_scale=1.,0.1,0.01,0.001,0.0001\
 #                 learner.kwargs.reg_c=0.01\
@@ -37,14 +38,15 @@ parent_log_dir="../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 learner.name="algorithms.SemiGradSSL"\
+#                 learner.name="learners.CSELearningModel"\
+#                 learner.kwargs.algorithm_name="algorithm_steps.SemiGradientSSLAlgorithm"\
 #                 task.init_scale=1.\
 #                 data.kwargs.deterministic=True\
 #                 learner.kwargs.reg_c=0.01\
 #                 learner.kwargs.lr_u=1.\
-#                 learner.kwargs.params_Q.update_rule="exact_inverse"\
-#                 learner.kwargs.params_Q.momentum=True\
-#                 learner.kwargs.params_Q.cold_start=False\
+#                 learner.kwargs.params_q.update_rule="exact_inverse"\
+#                 learner.kwargs.params_q.momentum=True\
+#                 learner.kwargs.params_q.cold_start=False\
 #                 learner.kwargs.eta=.01\
 #                 learner.kwargs.n_opt_pred=10\
 #                 learner.kwargs.full_solve_v=True\
@@ -53,7 +55,8 @@ parent_log_dir="../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 learner.name="algorithms.CSEgrad"\
+#                 learner.name="learners.CSELearningModel"\
+#                 learner.kwargs.algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm"\
 #                 task.init_scale=0.0001\
 #                 data.kwargs.deterministic=True\
 #                 learner.kwargs.reg_c=0.01\
@@ -63,17 +66,18 @@ parent_log_dir="../data/outputs/debug"
 #                 learner.kwargs.n_opt_pred=1\
 #                 learner.kwargs.n_opt_v=1\
 #                 learner.kwargs.full_solve_v=True\
-#                 learner.kwargs.params_Q.update_rule="exact_inverse"\
-#                 learner.kwargs.params_Q.momentum=True\
-#                 learner.kwargs.params_Q.cold_start=False\
+#                 learner.kwargs.params_q.update_rule="exact_inverse"\
+#                 learner.kwargs.params_q.momentum=True\
+#                 learner.kwargs.params_q.cold_start=False\
 #                 learner.kwargs.eta=1.\
-#                 ++learner.kwargs.params_Q.kwargs.eta=0.25\
+#                 ++learner.kwargs.params_q.kwargs.eta=0.25\
 #                 +mlxp.logger.parent_log_dir=$parent_log_dir\
 
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-                learner.name="algorithms.CSEBilevelJoint"\
+                learner.name="learners.CSELearningModel"\
+                learner.kwargs.algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm"\
                 task.init_scale=0.0001\
                 data.kwargs.deterministic=True\
                 learner.kwargs.reg_c=0.1\
@@ -92,7 +96,8 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 learner.name="algorithms.UnconstrainedCCA"\
+#                 learner.name="learners.CSELearningModel"\
+#                 learner.kwargs.algorithm_name="algorithm_steps.UnconstrainedCCAAlgorithm"\
 #                 task.init_scale=0.0001\
 #                 data.kwargs.deterministic=True\
 #                 learner.kwargs.reg_c=0.1\

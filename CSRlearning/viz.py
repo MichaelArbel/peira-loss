@@ -21,6 +21,10 @@ superscripts = {
 def to_superscript(n):
     return "".join(superscripts[c] for c in str(n))
 
+def _method_key(df):
+    if "config.learner.kwargs.algorithm_name" in df.columns:
+        return "config.learner.kwargs.algorithm_name"
+    return "config.learner.name"
 
 
 def save_and_show(filename='latest_plot', figures_dir="figures"):
@@ -76,7 +80,8 @@ def plot_phase_portrait(df, figures_dir="figures"):
     fig, axes = plt.subplots(1, 3, figsize=(21, 6))
     
     # Use standard grouping
-    df_group = df.groupby(['config.learner.name'])
+    method_key = _method_key(df)
+    df_group = df.groupby([method_key])
     methods = [key[0] for key in df_group.keys()]
     colors = ['#1f77b4', '#ff7f0e'] 
     heatmaps = [plt.cm.Blues, plt.cm.Oranges]
@@ -137,7 +142,7 @@ def plot_phase_portrait(df, figures_dir="figures"):
 
         target_spectrum = row['artifact.pickle.']['target_spectrum'].load()
         axes[1].scatter(target_spectrum[0], target_spectrum[1], color=color, s=300, marker='*', label='Target', edgecolors='black', zorder=10)
-        if method=="algorithms.SemiGradSSL":
+        if "SemiGradientSSL" in method:
             axes[1].scatter(target_spectrum[0],0, color='tab:red', s=200, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
 
 
@@ -240,7 +245,8 @@ def get_history(row):
 
 def plot_grad_norm(df, figures_dir):
 
-    df_group = df.groupby(['config.learner.name', 'config.task.init_scale'])
+    method_key = _method_key(df)
+    df_group = df.groupby([method_key, 'config.task.init_scale'])
     methods = list(np.unique([key[0] for key in df_group.keys()]))
     init_scales =  sorted(list(np.unique([key[1] for key in df_group.keys()])))
 
@@ -248,8 +254,13 @@ def plot_grad_norm(df, figures_dir):
     heatmaps = [plt.cm.Blues, plt.cm.Oranges]
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
-    method_label = {'algorithms.CSEgrad': "CSRLearning",
-                    'algorithms.SemiGradSSL': "SemiGradientSSL"}
+    method_label = {
+        "algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "algorithm_steps.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "algorithm_steps.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+    }
     
     cmap = plt.get_cmap('magma') 
     norm = mcolors.LogNorm(vmin=min(init_scales), vmax=max(init_scales))
@@ -267,7 +278,7 @@ def plot_grad_norm(df, figures_dir):
 
             ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=15)
             ax.set_xlabel(f"Training iterations", fontsize=15)
-            ax.set_title(f"{method_label[method]}", pad=15,fontsize=15)
+            ax.set_title(f"{method_label.get(method, method)}", pad=15, fontsize=15)
 
             # 3. Add a Colorbar to show the scale progression
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -279,7 +290,7 @@ def plot_grad_norm(df, figures_dir):
         ax.set_xscale('log')
         ax.set_ylim(bottom=1e-10, top=1e-0)
         plt.tight_layout()
-        name = f'grad_norm_{method_label[method]}'
+        name = f'grad_norm_{method_label.get(method, method)}'
         save_and_show(name, figures_dir= figures_dir)
 
 
@@ -294,7 +305,8 @@ def plot_final_spectral_distribution(df, figures_dir):
     
     # 1. Identify methods and unique initialization scales
     
-    df_group = df.groupby(['config.learner.name', 'config.task.init_scale'])
+    method_key = _method_key(df)
+    df_group = df.groupby([method_key, 'config.task.init_scale'])
     methods = list(np.unique([key[0] for key in df_group.keys()]))
     init_scales =  sorted(list(np.unique([key[1] for key in df_group.keys()])))
 
@@ -387,7 +399,8 @@ def plot_final_spectral_distribution(df, figures_dir):
 
 def plot_spectral_stack(df, figures_dir):
 
-    df_group = df.groupby(['config.learner.name', 'config.task.init_scale'])
+    method_key = _method_key(df)
+    df_group = df.groupby([method_key, 'config.task.init_scale'])
     methods = list(np.unique([key[0] for key in df_group.keys()]))
     init_scales =  sorted(list(np.unique([key[1] for key in df_group.keys()])))
 
@@ -395,8 +408,13 @@ def plot_spectral_stack(df, figures_dir):
     heatmaps = [plt.cm.Blues, plt.cm.Oranges]
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
-    method_label = {'algorithms.CSEgrad': "CSRLearning",
-                    'algorithms.SemiGradSSL': "SemiGradientSSL"}
+    method_label = {
+        "algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "algorithm_steps.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "algorithm_steps.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+    }
 
     _plot_spectral_stack(df_group, methods, init_scales, method_label, 
                         figures_dir, vmin=1e-6, vmax=10., data='spectrum')
@@ -501,7 +519,7 @@ def _plot_spectral_stack(df_group, methods, init_scales, method_label, figures_d
         else: 
             title = "Alignment"
 
-        axes[0].set_title(f"{title} Evolution: {method_label[method]}", pad=20, fontsize=fontsize)
+        axes[0].set_title(f"{title} Evolution: {method_label.get(method, method)}", pad=20, fontsize=fontsize)
         
         # Add 'Target' text over the top box
         if data=='spectrum':
@@ -515,14 +533,7 @@ def _plot_spectral_stack(df_group, methods, init_scales, method_label, figures_d
 
         # Set the font size of the numbers (ticks)
         cbar.ax.tick_params(labelsize=12)
-        save_and_show(f'{data}_image_{method_label[method]}', figures_dir= figures_dir)
-
-
-
-
-
-
-
+        save_and_show(f'{data}_image_{method_label.get(method, method)}', figures_dir= figures_dir)
 
 
 
