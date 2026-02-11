@@ -80,3 +80,11 @@ class OptimizerBundle:
                 entry.optimizer.step()
                 if entry.scheduler is not None:
                     entry.scheduler.step()
+
+
+@dataclass(frozen=True)
+class SpectralMetrics:
+    spectrum: torch.Tensor
+    target_spectrum: torch.Tensor
+    local_alignment: torch.Tensor
+    alignment: torch.Tensor

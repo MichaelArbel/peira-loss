@@ -6,18 +6,9 @@ import torch
 import torch.nn as nn
 
 from evaluation import compute_alignment
-from experiment_logging import (
-    log_alignment_artifacts,
-    log_data_info,
-    log_epoch_metrics,
-    log_target_spectrum,
-    log_vector_field_artifacts,
-    log_vector_field_metrics,
-)
-from factory import instantiate
-from pipeline import compute_covariance, encode
+from factory import instantiate, build_optimizer_bundle
+from pipeline import compute_spectral_metrics, encode
 from utils import set_seed, compute_running_average
-from core_types import OptimizerBundle
 from pprint import pprint
 
 
@@ -48,15 +39,12 @@ class CCAExperimentRunner:
         else:
             view2 = nn.Linear(d2, latent_dim, bias=False)
 
-        self.encoders, optimizers, schedulers = build_optimizers_and_schedulers(
+        self.encoders, self.optimizers = build_optimizer_bundle(
             [view1, view2],
             self.tied_encoders,
             cfg.optimizer,
             cfg.scheduler,
         )
-        self.optimizers = OptimizerBundle()
-        for opt, sch in zip(optimizers, schedulers):
-            self.optimizers.add(opt, sch, managed_by_algorithm=False)
 
 
         self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
@@ -130,7 +118,12 @@ class CCAExperimentRunner:
         self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
         for step in range(self.cfg.steps_per_epoch):
             with torch.no_grad():
-                spectral_metrics=  self.compute_spectral_metrics()
+                spectral_metrics = compute_spectral_metrics(
+                    self.encoders,
+                    self.loader,
+                    self.algorithm,
+                    self.tied_encoders,
+                )
             start = time.time()
             loss = self.step()
             end = time.time()
@@ -147,81 +140,6 @@ class CCAExperimentRunner:
             if np.mod(step, 10) == 0:
                 pprint(metrics)
 
-    def compute_spectral_metrics(self):
-        metrics = {}
-
-        inter_cov, cov_lists = compute_covariance(
-            lambda data: encode(data, self.encoders, False),
-            self.loader,
-        )
-
-        intra_cov = cov_lists[0]
-
-        if not self.tied_encoders:
-             intra_cov += cov_lists[1]
-             inter_cov += inter_cov.t()
-
-
-
-        R, S, _ = torch.linalg.svd(intra_cov)
-        target_spectrum_info = self.loader.info
-        metrics["spectrum"], metrics["target_spectrum"] = self.algorithm.compute_spectrum(S, target_spectrum_info)
-        
-        ## Local alignment
-        metrics["local_alignment"] = compute_alignment(inter_cov, R)
-
-
-        # Target alignment of the weights
-
-        W = self.encoders[0].weight
-
-        if self.tied_encoders:
-            W = self.encoders[0].weight
-            B = target_spectrum_info.cov_1
-            U = target_spectrum_info.singular_vectors_1
-        else:
-            W = torch.cat([self.encoders[0].weight, self.encoders[1].weight], dim=0)
-            B = torch.cat([target_spectrum_info.cov_1, target_spectrum_info.cov_2], dim=0)
-            U = torch.cat(
-                [
-                    target_spectrum_info.singular_vectors_1,
-                    target_spectrum_info.singular_vectors_2,
-                ],
-                dim=0,
-            )
-        
-        eigvals, eigvecs = torch.linalg.eigh(B)
-        sqrt_B = eigvecs @ torch.diag(torch.sqrt(eigvals.clamp(min=0))) @ eigvecs.T
-
-        M = sqrt_B@W.t()@W@sqrt_B
-        metrics["alignment"] = compute_alignment(M,U)
-        return metrics
-
-def build_optimizers_and_schedulers( 
-        encoders,
-        tied_encoders,
-        optimizer_spec,
-        scheduler_spec):
-    
-    first_encoder = encoders[0]
-    if tied_encoders:
-        for i in range(len(encoders)): 
-            encoders[i] = first_encoder
-
-
-    optimizer_ctor = lambda params: instantiate(optimizer_spec.name)(params, **optimizer_spec.kwargs)
-
-    scheduler_ctor = lambda optimizer: instantiate(scheduler_spec.name)(
-        optimizer, **scheduler_spec.kwargs)
-
-    if not tied_encoders:
-        optimizers = [optimizer_ctor(encoder.parameters()) for encoder in encoders]
-    else:
-         optimizers = [optimizer_ctor(first_encoder.parameters())]
-
-    schedulers = [scheduler_ctor(opt) for opt in optimizers]
-
-    return encoders, optimizers, schedulers
 
 
 

@@ -99,19 +99,18 @@ class MomentumRegressor(nn.Module):
 
 
 def get_regressor_spec(regressor, lr, T_max, symmetric, with_adjoint):
-    regressor_spec = {"name": regressor,
-                      "kwargs": {
-                                "optimizer": {"name": "torch.optim.SGD",
-                                              "kwargs": {"lr": lr}
-                                            },
-                                "scheduler": {"name": "torch.optim.lr_scheduler.CosineAnnealingLR",
-                                              "kwargs": {"T_max": T_max}
-                                            },
-                                "symmetric": symmetric,
-                                "with_adjoint": with_adjoint
-                            }             
-                }
-
+    regressor_spec = {
+        "name": regressor,
+        "kwargs": {
+            "symmetric": symmetric,
+            "with_adjoint": with_adjoint,
+        },
+        "optimizer": {"name": "torch.optim.SGD", "kwargs": {"lr": lr}},
+        "scheduler": {
+            "name": "torch.optim.lr_scheduler.CosineAnnealingLR",
+            "kwargs": {"T_max": T_max},
+        },
+    }
     return regressor_spec
     
 
@@ -128,15 +127,20 @@ def build_regressor(spec, latent_dim, reg):
     pred_init = torch.zeros(k, k)
     adjoint_init = torch.zeros(k, k)
     kwargs = spec.get("kwargs", {})
-    optimizer_spec = kwargs.get("optimizer", {})
-    scheduler_spec = kwargs.get("scheduler", {})
-    assert "kwargs" in scheduler_spec and "T_max" in scheduler_spec["kwargs"]
+    optimizer_spec = spec.get("optimizer", {})
+    scheduler_spec = spec.get("scheduler", {})
 
-    optimizer_cls = instantiate(optimizer_spec.get("name", "torch.optim.SGD"))
-    scheduler_cls = instantiate(scheduler_spec.get("name", "torch.optim.lr_scheduler.CosineAnnealingLR"))      
+    if "name" not in optimizer_spec:
+        raise ValueError("regressor spec is missing optimizer.name")
 
+    optimizer_cls = instantiate(optimizer_spec.get("name"))
     optimizer_ctor = lambda param: optimizer_cls(param, **optimizer_spec.get("kwargs", {}))
-    scheduler_ctor = lambda optimizer: scheduler_cls(optimizer, **scheduler_spec.get("kwargs",{}))
+
+    if scheduler_spec:
+        scheduler_cls = instantiate(scheduler_spec.get("name"))
+        scheduler_ctor = lambda optimizer: scheduler_cls(optimizer, **scheduler_spec.get("kwargs", {}))
+    else:
+        scheduler_ctor = lambda optimizer: None
 
     return regressor_cls(
         pred_init,
@@ -147,6 +151,5 @@ def build_regressor(spec, latent_dim, reg):
         symmetric=kwargs.get("symmetric", True),
         with_adjoint=kwargs.get("with_adjoint", False),
     )
-
 
 
