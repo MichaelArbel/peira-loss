@@ -1,42 +1,243 @@
 import torch
-import math
+import torch.nn as nn
+
+from objectives import (
+    cse_auxiliary_loss,
+    cse_loss,
+    eckhart_young_loss,
+    l2_penalty,
+    linear_probe_loss,
+)
+from evaluation import (
+    compute_cse_spectrum,
+    compute_semigrad_spectrum,
+    compute_unconstrained_cca_spectrum,
+)
+from implicit_linear_predictor import get_regressor_spec, build_regressor
 
 
-def cosine_momentum_schedule(epoch, T_max, m_start, m_end):
-    return m_end + 0.5 * (m_start - m_end) * (1 + math.cos(math.pi * epoch / T_max))
+class BaseAlgorithm(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.stop_grad = False
+
+    def configure(self, encoders, optimizers, schedulers):
+        pass
+
+    def compute_spectrum(self):
+        raise NotImplementedError
+
+    def compute_loss(self, X, Y):
+        raise NotImplementedError
+
+    def update_internal_state(self, data_gen):
+        pass
 
 
-def compute_regression_loss(u, v):
-    # Placeholder for L_reg(U, V)
-    return 0.5 * torch.mean(torch.sum((u - v) ** 2, dim=1))
 
 
-def compute_auxiliary_loss(u, v, Q, S, reg_c):
-    # Placeholder for L_aux(U, V, Q, S)
-    # Implements a form of the Contrastive Spectral Objective
-    # tr(U^T Q S Q U) or similar logic derived from your CSE research
-    Qu = torch.einsum("kl,ml->mk", Q, u)
+class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
-    loss = (1.0 / 2) * torch.einsum("mk,mk->", (Qu @ S), Qu) / u.shape[0]
-    loss += 0.5 * reg_c * torch.einsum("mk,mk->", u, u) / u.shape[0]
-    loss += -torch.einsum("mk,mk->", Qu, v) / u.shape[0]
+    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
+        target_spectrum = target_spectrum_info["spectrum"]
+        return compute_unconstrained_cca_spectrum(cov_spectrum, target_spectrum)
 
-    return loss
+    def compute_loss(self, X, Y):
+        return eckhart_young_loss(X, Y)
+
+class CSEAlgorithm(BaseAlgorithm):
+    def __init__(self, reg):
+        super().__init__()
+        self.reg = reg
+    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
+        target_spectrum = target_spectrum_info["spectrum"]
+        return compute_cse_spectrum(cov_spectrum,target_spectrum , self.reg)
+
+class SSLAlgorithm(BaseAlgorithm):
+    def __init__(self, reg):
+        super().__init__()
+        self.stop_grad = True
+        self.reg = reg
+    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
+        return compute_semigrad_spectrum(cov_spectrum, target_spectrum_info, self.reg)
 
 
-def compute_cse_objective(Q, S, u, reg_c):
-    return (1.0 / 2) * torch.sum(S * Q) - 0.5 * reg_c * torch.einsum("mk,mk->", u, u) / u.shape[0]
+
+class CSEExactRegressionAlgorithm(CSEAlgorithm):
+    def compute_loss(self, X, Y):
+        return cse_loss(X, Y, None, self.reg)
 
 
-def compute_semi_gradient_ssl_loss(u, v, P, reg_c, model):
-    l2_penalty = 0
-    for param in model.parameters():
-        l2_penalty += torch.sum(param ** 2)
-    pred = torch.einsum("rl,bl->br", P, u)
-    return 0.5 * torch.mean(torch.sum((pred - v) ** 2, dim=1)) + 0.5 * reg_c * l2_penalty
 
 
-def compute_running_average_field(avg_field_old, new_field, eta):
-    if avg_field_old is None:
-        return new_field
-    return (1 - eta) * avg_field_old + eta * new_field
+
+class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
+    """
+    Models that contain a linear regressor that is optimized 
+    during call to update_internal_state method
+    """
+    def __init__(self, latent_dim, reg, n_iter, regressor_spec):
+        super().__init__()
+        self.reg = reg
+        self.latent_dim = latent_dim
+        self.n_iter = n_iter
+        self.regressor = build_regressor(regressor_spec, 
+                                        self.latent_dim,
+                                        self.reg)
+        self.encoders = None
+
+    def configure(self, encoders, optimizers, schedulers):
+        if hasattr(self.regressor, "scheduler"):
+            schedulers.append(self.regressor.scheduler)
+        self.encoders = encoders
+
+    def update_internal_state(self,data_gen):
+        for _ in range(self.n_iter):
+            with torch.no_grad():
+                data = next(data_gen)
+                outputs = encode(data, self.encoders)
+            self.pred = self.regressor(outputs[0].detach(), outputs[1].detach())
+
+
+
+
+class CSEStoCompGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
+    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
+
+        regressor = "MomentumRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=True, 
+                                            with_adjoint=True)
+        super().__init__(latent_dim=latent_dim, 
+                         reg=reg, 
+                         n_iter= n_iter, 
+                         regressor_spec= regressor_spec)
+
+    def compute_loss(self, X, Y):
+        pred, adjoint_pred = self.pred
+        return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
+
+
+
+
+class CSEBilevelStoGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
+    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
+
+        regressor = "IterativeDiffRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=True, 
+                                            with_adjoint=True)
+        super().__init__(latent_dim=latent_dim, 
+                         reg=reg, 
+                         n_iter= n_iter, 
+                         regressor_spec= regressor_spec)
+
+    def compute_loss(self, X, Y):
+        pred, adjoint_pred = self.pred
+        return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
+
+
+
+class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorithm):
+    def __init__(self, latent_dim, reg, T_max, lr):
+        regressor = "IterativeDiffRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=True, 
+                                            with_adjoint=True)
+        super().__init__(latent_dim=latent_dim, 
+                         reg=reg, 
+                         n_iter= n_iter, 
+                         regressor_spec= regressor_spec)
+
+
+    def configure(self, encoders, optimizers, schedulers):
+        super().configure(encoders, optimizers, schedulers)
+        optimizers.append(self.regressor.optimizer)
+
+    def update_internal_state(self, data_gen):
+        pass
+
+    def compute_loss(self, X, Y):
+        pred = self.regressor.pred
+        adjoint = self.regressor.adjoint
+        X_det, Y_det = X.detach(), Y.detach()
+
+        pred_loss = self.regressor.pred_loss(X_det, Y_det, pred, self.reg)
+        adjoint_loss = self.regressor.adjoint_loss(X_det, Y_det, adjoint, self.reg)
+        loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
+        return pred_loss + adjoint_loss + loss_aux
+
+
+class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
+    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
+
+        regressor = "MomentumRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=False, 
+                                            with_adjoint=False)
+        super().__init__(latent_dim=latent_dim, 
+                         reg=reg, 
+                         n_iter= n_iter, 
+                         regressor_spec= regressor_spec)
+
+    def compute_loss(self, X, Y):
+        loss = linear_probe_loss(X, Y, self.pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        return loss
+
+
+class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
+    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
+
+        regressor = "IterativeDiffRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=False, 
+                                            with_adjoint=False)
+        super().__init__(latent_dim=latent_dim, 
+                 reg=reg, 
+                 n_iter= n_iter, 
+                 regressor_spec= regressor_spec)
+
+    def compute_loss(self, X, Y):
+        loss = linear_probe_loss(X, Y, self.pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        return loss
+
+
+
+class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
+    def __init__(self, latent_dim, reg, T_max, lr):
+        regressor = "IterativeDiffRegressor"
+        regressor_spec = get_regressor_spec(regressor, 
+                                            lr, 
+                                            T_max, 
+                                            symmetric=False, 
+                                            with_adjoint=False)
+        super().__init__(latent_dim=latent_dim, 
+                 reg=reg, 
+                 n_iter= n_iter, 
+                 regressor_spec= regressor_spec)
+
+
+    def configure(self, encoders, optimizers, schedulers):
+        super().configure(encoders, optimizers, schedulers)
+        optimizers.append(self.regressor.optimizer)
+
+    def update_internal_state(self, data_gen):
+        pass
+
+    def compute_loss(self, X, Y):
+        pred = self.regressor.pred
+        loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        return loss

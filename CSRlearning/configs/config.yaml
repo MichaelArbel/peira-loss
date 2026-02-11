@@ -32,22 +32,27 @@ data:
 
 
 # SCEgrad Hyperparameters
-learner:
-  name: "learners.CSELearningModel"
+
+algorithm:
+  name: "algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"
   kwargs:
-    algorithm_name: "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm"
-    latent_dim: 30          # The size of representations u and v
-    lr_u: 1.         # Learning rate for U_theta
-    lr_v: 0.1           # Learning rate for V_psi
-    eta: 1.              # Learning rate for S update (LinPred)
-    reg_c: .1              # Regularization constant c
-    n_opt_v: 1
-    n_opt_pred: 1
-    n_accum_pred: 1
-    update_mode_cold_start: False
-    full_solve_v: True
-    params_q: 
-      update_rule: "exact_inverse"
-      momentum: False
-      cold_start: True
-      kwargs: null
+    state:
+      latent_dim: 30
+      lr_u: 1.0
+      lr_v: 0.1
+      eta: 1.0
+      reg_c: 0.1
+      n_opt_pred: 1
+      t_max: 20000
+      tied_encoders: false
+    regressor:
+      name: "linear_regressor.IterativeDiffRegressor"
+      kwargs:
+        symmetric: true
+        with_adjoint: true
+      optimizer:
+        name: "torch.optim.SGD"
+        kwargs: { lr: 1.0 }
+      scheduler:
+        name: "torch.optim.lr_scheduler.CosineAnnealingLR"
+        kwargs: { T_max: 20000, eta_min: 0.000001 }

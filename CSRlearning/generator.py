@@ -60,15 +60,6 @@ class LinearCCADataGenerator:
         eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=self.dtype)
         return self.gen_data(z,eps_1,eps_2)
         # 2. Project to high-dimensional views
-        
-
-    def get_ground_truth_correlation(self):
-        """
-        Optional: Useful for MLXP logging to see how close 
-        your algorithm gets to the theoretical maximum.
-        """
-        # In a noise-free case (sigma=0), the top k correlations should be 1.0.
-        pass
 
     def gen_data(self,z,eps_1,eps_2):
         x1 = z @ self.A1.t() + self.sigma * eps_1
@@ -86,16 +77,22 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, si
     S_vals_1 = torch.logspace(0,-4, steps=dim_z, device =device, dtype=dtype)
     S_vals_2 = 1.*S_vals_1#torch.logspace(-3,0, steps=dim_z, device =device, dtype=dtype)
 
-    corr = filter(S_vals_1,sigma)*filter(S_vals_2,sigma)
-    _, indices = torch.sort(corr, descending=True)
 
-    S_vals_1 = S_vals_1[indices]
-    S_vals_2 = S_vals_2[indices]
+    # S_vals_1 = S_vals_1[indices]
+    # S_vals_2 = S_vals_2[indices]
     if sign_flip:
         S_vals_2[1:] = -S_vals_2[1:]  
 
     k = len(S_vals_1)
     
+
+    spectrum = torch.abs(S_vals_1 * S_vals_2) / (
+        torch.sqrt(S_vals_1 ** 2 + sigma ** 2) * torch.sqrt(S_vals_2 ** 2 + sigma ** 2)
+    )
+    spectrum, index = torch.sort(spectrum, descending=True)
+    S_vals_1 = S_vals_1[index]
+    S_vals_2 = S_vals_2[index]
+
     # 1. Create a shared orthogonal basis for the latent space
     # We use QR to get a clean orthonormal matrix
     Q, _ = torch.linalg.qr(torch.randn(dim_z, k, device = device, dtype=dtype))
@@ -112,10 +109,19 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, si
     A1 = P1 @ torch.diag(S_vals_1)@ Q.t()
     A2 = P1 @ torch.diag(S_vals_2) @ Q.t()
 
-    info = {"P": P1, 
-            "S_1": S_vals_1, 
-            "S_2": S_vals_2, 
-            "sigma": sigma}
+    cov_1 = P1@torch.diag(S_vals_1**2 + sigma**2)P1.t()
+    cov_2 = P1@torch.diag(S_vals_2**2 + sigma**2)P1.t()
+    
+    info = {
+        "singular_vectors_1": P1,
+        "singular_vectors_2": P1,
+        "cov_1": cov_1,
+        "cov_2": cov_2,
+        "intra_spectrum_1": S_vals_1**2 + sigma**2,
+        "intra_spectrum_2": S_vals_2**2 + sigma**2,
+        "inter_spectrum":  torch.abs(S_vals_2*S_vals_1)
+        "spectrum": spectrum,
+    }
     
     return A1, A2, info
 
@@ -141,14 +147,6 @@ def generate_deterministic_data(b=512, d=[10, 128, 128], device='cpu', dtype=tor
     eps_2 = data[:, d[1]+d[0]:]
 
     return z, eps_1, eps_2
-
-
-
-def filter(s,sigma):
-    return s/torch.sqrt(s**2+sigma**2)
-
-
-
 
 
 

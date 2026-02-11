@@ -255,11 +255,11 @@ def plot_grad_norm(df, figures_dir):
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     method_label = {
-        "algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
-        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
-        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
-        "algorithm_steps.SemiGradientSSLAlgorithm": "SemiGradientSSL",
-        "algorithm_steps.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+        "algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
     }
     
     cmap = plt.get_cmap('magma') 
@@ -409,11 +409,11 @@ def plot_spectral_stack(df, figures_dir):
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     method_label = {
-        "algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
-        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
-        "algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
-        "algorithm_steps.SemiGradientSSLAlgorithm": "SemiGradientSSL",
-        "algorithm_steps.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+        "algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
     }
 
     _plot_spectral_stack(df_group, methods, init_scales, method_label, 

@@ -2,19 +2,20 @@ import argparse
 import math
 from dataclasses import dataclass
 from typing import Dict, List
+from types import SimpleNamespace
 
 import torch
 
 from evaluation import compute_alignment
 from generator import LinearCCADataGenerator
-from learners import CSELearningModel
+from utils import instantiate
 
 
 @dataclass
 class AlgorithmTestConfig:
     algorithm_name: str
-    learner_kwargs: dict
-    init: dict
+    state_kwargs: dict
+    regressor_spec: dict
 
 
 def set_all_seeds(seed: int) -> None:
@@ -66,29 +67,68 @@ def run_algorithm_test(
         sign_flip=False,
     )
 
-    encoder_u = torch.nn.Linear(d1, cfg.learner_kwargs["latent_dim"], bias=False)
-    encoder_v = torch.nn.Linear(d2, cfg.learner_kwargs["latent_dim"], bias=False)
+    latent_dim = cfg.state_kwargs["latent_dim"]
+    encoder_u = torch.nn.Linear(20, latent_dim, bias=False)
+    if cfg.state_kwargs.get("tied_encoders", False):
+        encoder_v = encoder_u
+    else:
+        encoder_v = torch.nn.Linear(20, latent_dim, bias=False)
 
-    model = CSELearningModel(
-        encoder_u=encoder_u,
-        encoder_v=encoder_v,
-        algorithm_name=cfg.algorithm_name,
-        **cfg.learner_kwargs,
-    ).to(device)
+    lr_u = cfg.state_kwargs.get("lr_u", 0.001)
+    lr_v = cfg.state_kwargs.get("lr_v", lr_u)
+    optimizer_ctor = lambda params, lr: torch.optim.SGD(params, lr=lr)
+    optimizers = [optimizer_ctor(encoder_u.parameters(), lr_u)]
+    if encoder_v is not encoder_u:
+        optimizers.append(optimizer_ctor(encoder_v.parameters(), lr_v))
+    t_max = cfg.state_kwargs.get("t_max", iterations)
+    scheduler_ctor = lambda optimizer: torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=t_max, eta_min=0.000001
+    )
+    schedulers = [scheduler_ctor(opt) for opt in optimizers]
+
+    model = SimpleNamespace(
+        encoder_u=encoder_u.to(device),
+        encoder_v=encoder_v.to(device),
+        optimizers=optimizers,
+        schedulers=schedulers,
+        k=latent_dim,
+        eta=cfg.state_kwargs.get("eta", 0.1),
+        reg_c=cfg.state_kwargs.get("reg_c", 1.0),
+        n_opt_pred=cfg.state_kwargs.get("n_opt_pred", 1),
+        t_max=t_max,
+        counter=0,
+        first_update=True,
+        Q=torch.eye(latent_dim, device=device, dtype=dtype),
+        S=torch.zeros(latent_dim, latent_dim, device=device, dtype=dtype),
+        F=torch.zeros(latent_dim, latent_dim, device=device, dtype=dtype),
+    )
+
+    algorithm_class = instantiate(cfg.algorithm_name)
+    algorithm = algorithm_class()
+    algorithm.configure_model(model, {"regressor": cfg.regressor_spec})
 
     if dtype == torch.float64:
-        model = model.double()
+        model.encoder_u = model.encoder_u.double()
+        if model.encoder_v is not model.encoder_u:
+            model.encoder_v = model.encoder_v.double()
 
-    model.reset_parameters(mode=cfg.init.get("init_mode", "near_zero"),
-                          scale=cfg.init.get("init_scale", 1e-4))
+    with torch.no_grad():
+        for m in [model.encoder_u, model.encoder_v]:
+            if isinstance(m, torch.nn.Linear):
+                if cfg.state_kwargs.get("init_mode", "near_zero") == "near_zero":
+                    torch.nn.init.normal_(
+                        m.weight,
+                        mean=0.0,
+                        std=cfg.state_kwargs.get("init_scale", 1e-4),
+                    )
 
     last_metrics = None
     for step in range(iterations):
-        metrics = model.forward_backward(data_gen)
+        metrics = algorithm.step(model, data_gen)
         last_metrics = metrics
 
         if (step % print_interval) == 0 or step == iterations - 1:
-            spectrum, target_spectrum = model.compute_spectrum(data_gen)
+            spectrum, target_spectrum = algorithm.compute_spectrum(model, data_gen)
             alignment = compute_alignment_summary(model, data_gen)
             s1, s2 = spectrum[0].item(), spectrum[1].item()
             ts1, ts2 = target_spectrum[0].item(), target_spectrum[1].item()
@@ -97,17 +137,18 @@ def run_algorithm_test(
                 f"[{cfg.algorithm_name}] step={step} "
                 f"s=({abs(s1-ts1):.4e},{abs(s2-ts2):.4e}) "
                 f"align=({align1:.4f},{align2:.4f}) "
-                f"loss={metrics.get('loss_CSE', math.nan):.4e}"
+                f"loss={metrics.get('loss', math.nan):.4e}"
             )
 
-        # Sanity: no NaNs or infs in model params or losses
-        params = [p.data for p in model.parameters()]
+        params = [p.data for p in model.encoder_u.parameters()]
+        if model.encoder_v is not model.encoder_u:
+            params += [p.data for p in model.encoder_v.parameters()]
         if not has_finite_tensors(params):
             raise AssertionError(f"Non-finite parameter encountered for {cfg.algorithm_name}")
         if not all(math.isfinite(v) for v in metrics.values()):
             raise AssertionError(f"Non-finite metric encountered for {cfg.algorithm_name}")
 
-    spectrum, target_spectrum = model.compute_spectrum(data_gen)
+    spectrum, target_spectrum = algorithm.compute_spectrum(model, data_gen)
     alignment = compute_alignment_summary(model, data_gen)
 
     alignment_error = float(torch.mean(1.0 - alignment).item())
@@ -116,59 +157,66 @@ def run_algorithm_test(
     return {
         "alignment_error": alignment_error,
         "spectrum_error": spectrum_error,
-        "loss_CSE": float(last_metrics.get("loss_CSE", math.nan)) if last_metrics else math.nan,
+        "loss": float(last_metrics.get("loss", math.nan)) if last_metrics else math.nan,
     }
 
 
 def default_algorithm_configs() -> List[AlgorithmTestConfig]:
-    base_kwargs = {
+    base_state = {
         "latent_dim": 30,
         "lr_u": 0.1,
         "lr_v": 0.1,
         "eta": 1.0,
         "reg_c": 0.1,
-        "n_opt_v": 1,
         "n_opt_pred": 1,
-        "n_accum_pred": 1,
-        "update_mode_cold_start": False,
-        "full_solve_v": True,
-        "params_q": {
-            "update_rule": "exact_inverse",
-            "momentum": False,
-            "cold_start": True,
-            "kwargs": None,
-        },
-    }
-    init = {  
+        "t_max": 20000,
+        "tied_encoders": False,
         "init_mode": "near_zero",
         "init_scale": 1e-4,
     }
 
+    regressor_spec = {
+        "name": "implicit_linear_predictor.IterativeDiffRegressor",
+        "kwargs": {"symmetric": True, "with_adjoint": True},
+        "optimizer": {"name": "torch.optim.SGD", "kwargs": {"lr": 1.0}},
+        "scheduler": {
+            "name": "torch.optim.lr_scheduler.CosineAnnealingLR",
+            "kwargs": {"T_max": 20000, "eta_min": 0.000001},
+        },
+    }
+
     return [
         AlgorithmTestConfig(
-            algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm",
-            learner_kwargs=dict(base_kwargs),
-            init = init,
+            algorithm_name="algorithms.CanonicalSubspaceEmbeddingExactAlgorithm",
+            state_kwargs=dict(base_state),
+            regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelAlgorithm",
-            learner_kwargs=dict(base_kwargs),
-            init = init,
+            algorithm_name="algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm",
+            state_kwargs=dict(base_state),
+            regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithm_steps.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
-            learner_kwargs=dict(base_kwargs),
-            init = init,
+            algorithm_name="algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
+            state_kwargs=dict(base_state),
+            regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithm_steps.SemiGradientSSLAlgorithm",
-            learner_kwargs=dict(base_kwargs),
-            init = init,
+            algorithm_name="algorithms.SemiGradientSSLAlgorithm",
+            state_kwargs=dict(base_state),
+            regressor_spec={
+                "name": "implicit_linear_predictor.MomentumRegressor",
+                "kwargs": {"symmetric": False, "with_adjoint": False},
+                "scheduler": {
+                    "name": "utils.CosineScheduler",
+                    "kwargs": {"T_max": 20000, "m_start": 1.0, "m_end": 0.001},
+                },
+            },
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithm_steps.UnconstrainedCCAAlgorithm",
-            learner_kwargs=dict(base_kwargs),
-            init = init,
+            algorithm_name="algorithms.UnconstrainedCCAAlgorithm",
+            state_kwargs=dict(base_state),
+            regressor_spec=regressor_spec,
         ),
     ]
 
@@ -184,7 +232,7 @@ def main() -> None:
         "--algorithm",
         type=str,
         default=None,
-        help="Run a single algorithm by full class path (e.g., algorithm_steps.CanonicalSubspaceEmbeddingExactAlgorithm)",
+        help="Run a single algorithm by full class path (e.g., algorithms.CanonicalSubspaceEmbeddingExactAlgorithm)",
     )
     args = parser.parse_args()
 
@@ -198,7 +246,7 @@ def main() -> None:
         algorithm_configs = [cfg for cfg in algorithm_configs if cfg.algorithm_name == args.algorithm]
         if not algorithm_configs:
             available = [cfg.algorithm_name for cfg in default_algorithm_configs()]
-            raise ValueError(f"Unknown algorithm '{args.algorithm}'. उपलब्ध: {available}")
+            raise ValueError(f"Unknown algorithm '{args.algorithm}'. Available: {available}")
 
     for cfg in algorithm_configs:
         results[cfg.algorithm_name] = run_algorithm_test(
@@ -210,12 +258,12 @@ def main() -> None:
             seed=args.seed,
         )
 
-    print("Summary")
+    print("\nSummary")
     for name, metrics in results.items():
         print(
             f"{name}: alignment_error={metrics['alignment_error']:.4e}, "
             f"spectrum_error={metrics['spectrum_error']:.4e}, "
-            f"loss_CSE={metrics['loss_CSE']:.4e}"
+            f"loss={metrics['loss']:.4e}"
         )
 
 
