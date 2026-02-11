@@ -3,6 +3,7 @@ import torch.nn as nn
 from typing import Callable, Dict, Any, Optional, Sequence, Tuple
 from linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
 from objectives import linear_probe_loss, adjoint_pred_loss
+from utils import instantiate
 # ---------------------------
 # Default inner solver: arbitrary optimizer (user-provided)
 # ---------------------------
@@ -98,34 +99,34 @@ class MomentumRegressor(nn.Module):
 
 
 def get_regressor_spec(regressor, lr, T_max, symmetric, with_adjoint):
-        if regressor=="MomentumRegressor":
+    if regressor=="MomentumRegressor":
 
-            regressor_spec = {"name": "linear_regressor.MomentumRegressor",
-                              "kwargs": {
-                                        "optimizer": {"name": "utils.MomentumOptimizer",
-                                                      "kwargs": {"lr": lr}
-                                                    },
-                                        "scheduler": {"name": "utils.CosineScheduler",
-                                                      "kwargs": {"T_max": T_max}
-                                                    },
-                                        "symmetric": symmetric,
-                                        "with_adjoint": with_adjoint
-                                    }             
-                        }
-        elif regressor=="IterativeDiffRegressor":
-            regressor_spec = {"name": "linear_regressor.IterativeDiffRegressor",
-                              "kwargs": {
-                                        "optimizer": {"name": "torch.optim.SGD",
-                                                      "kwargs": {"lr": lr}
-                                                    },
-                                        "scheduler": {"name": "torch.optim.lr_scheduler.CosineAnnealingLR",
-                                                      "kwargs": {"T_max": T_max}
-                                                    },
-                                        "symmetric": symmetric,
-                                        "with_adjoint": with_adjoint
-                                    }             
-                        }
-
+        regressor_spec = {"name": "linear_regressor.MomentumRegressor",
+                          "kwargs": {
+                                    "optimizer": {"name": "utils.MomentumOptimizer",
+                                                  "kwargs": {"lr": lr}
+                                                },
+                                    "scheduler": {"name": "utils.CosineScheduler",
+                                                  "kwargs": {"T_max": T_max}
+                                                },
+                                    "symmetric": symmetric,
+                                    "with_adjoint": with_adjoint
+                                }             
+                    }
+    elif regressor=="IterativeDiffRegressor":
+        regressor_spec = {"name": "linear_regressor.IterativeDiffRegressor",
+                          "kwargs": {
+                                    "optimizer": {"name": "torch.optim.SGD",
+                                                  "kwargs": {"lr": lr}
+                                                },
+                                    "scheduler": {"name": "torch.optim.lr_scheduler.CosineAnnealingLR",
+                                                  "kwargs": {"T_max": T_max}
+                                                },
+                                    "symmetric": symmetric,
+                                    "with_adjoint": with_adjoint
+                                }             
+                    }
+    return regressor_spec
     
 
 
@@ -152,7 +153,7 @@ def build_regressor(spec, latent_dim, reg):
         optimizer_cls = instantiate(optimizer_spec.get("name", "torch.optim.SGD"))
         scheduler_cls = instantiate(scheduler_spec.get("name", "torch.optim.lr_scheduler.CosineAnnealingLR"))
 
-    optimizer_ctor = lambda param: scheduler_cls(param, **optimizer_spec.get("kwargs", {}))
+    optimizer_ctor = lambda param: optimizer_cls(param, **optimizer_spec.get("kwargs", {}))
     scheduler_ctor = lambda optimizer: scheduler_cls(optimizer, **scheduler_spec.get("kwargs",{}))
 
     return regressor_cls(

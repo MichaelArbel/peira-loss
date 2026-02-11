@@ -52,10 +52,10 @@ class MomentumOptimizer:
         self.params = params
         self.lr = lr
     def step(self):
-        for param in zip(self.params):
+        for param in self.params:
             param.data -=  self.lr*param.grad
     def zero_grad(self):
-        for param in zip(self.params):
+        for param in self.params:
             param.grad = None
 
 class CosineScheduler:
@@ -64,7 +64,7 @@ class CosineScheduler:
         self.T_max = T_max
         self.m_start = optimizer.lr
         self.m_end = m_end
-        self.m_current = m_start
+        self.m_current = self.m_start
         self.optimizer = optimizer
     def step(self):
         self.counter +=1

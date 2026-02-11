@@ -24,18 +24,19 @@ def compute_alignment(M, U, B=None):
 
     return dot_products / (norms_M_ui + 1e-8)
 
-def compute_covariance(encoder, data_gen, num_batches=10):
+def compute_covariance(encoders, data_gen, num_batches=10):
     # 2. Estimate F = E[U(x)U(x)^T] using several fresh batches
     for iteration in range(num_batches):
         data = next(data_gen)
         outputs = encode(data, encoders)  # [batch, k]
+        num_cov = len(outputs) +1
         if iteration == 0:
             k = outputs[0].shape[1]
-            Covs = [torch.zeros((k, k), device=output.device) for i in len(outputs)+1]
+            Covs = [torch.zeros((k, k), device=outputs[i].device) for i in num_cov]
 
         # Center u to compute the actual covariance if necessary
         Covs[0] +=  torch.matmul(outputs[1].t(), outputs[0]) / (outputs[0].shape[0] * num_batches)
-        for i,output in enumerate(outputs):
+        for i, output in enumerate(outputs):
             Covs[i+1] += torch.matmul(output.t(), output) / (output.shape[0] * num_batches)
   
     return Covs[0], Covs[1:]
@@ -48,7 +49,7 @@ def compute_covariance(encoder, data_gen, num_batches=10):
 def compute_cse_spectrum(covariance_spectrum, target_spectrum, reg):
     #_, cov_lists = compute_covariance(encoders, data_gen, num_batches=100)
 
-    target_spectrum_padded = torch.zeros_like(torch.zeros_like(spectrum, dtype=torch.float64))
+    target_spectrum_padded = torch.zeros_like(torch.zeros_like(covariance_spectrum, dtype=torch.float64))
     target_spectrum_tmp = torch.where(torch.sqrt(target_spectrum) < reg, 0.0, target_spectrum)
 
     n = target_spectrum.shape[0]
@@ -75,7 +76,7 @@ def compute_semigrad_spectrum(covariance_spectrum, full_target_spectrum, reg):
     intra_spectrum_x = full_target_spectrum["intra_spectrum_1"]
     intra_spectrum_y = full_target_spectrum["intra_spectrum_2"]
 
-
+    Corr = inter_spectrum / intra_spectrum_x
     thresh = reg / intra_spectrum_x
     discriminant = Corr ** 2 - 4 * thresh
     ratio = torch.sqrt((intra_spectrum_x / intra_spectrum_y))
@@ -112,6 +113,7 @@ def compute_unconstrained_cca_spectrum(covariance_spectrum, target_spectrum):
     n = target_spectrum.shape[0]
     k = covariance_spectrum.shape[0]
     num_to_copy = min(n, k)
+    target_spectrum_padded = torch.zeros_like(torch.zeros_like(covariance_spectrum, dtype=torch.float64))
     target_spectrum_padded[:num_to_copy] = target_spectrum[:num_to_copy]
 
-    return spectrum, target_spectrum_padded
+    return covariance_spectrum, target_spectrum_padded

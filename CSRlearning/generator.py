@@ -109,8 +109,8 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, si
     A1 = P1 @ torch.diag(S_vals_1)@ Q.t()
     A2 = P1 @ torch.diag(S_vals_2) @ Q.t()
 
-    cov_1 = P1@torch.diag(S_vals_1**2 + sigma**2)P1.t()
-    cov_2 = P1@torch.diag(S_vals_2**2 + sigma**2)P1.t()
+    cov_1 = P1@torch.diag(S_vals_1**2 + sigma**2)@P1.t()
+    cov_2 = P1@torch.diag(S_vals_2**2 + sigma**2)@P1.t()
     
     info = {
         "singular_vectors_1": P1,
@@ -119,7 +119,7 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, si
         "cov_2": cov_2,
         "intra_spectrum_1": S_vals_1**2 + sigma**2,
         "intra_spectrum_2": S_vals_2**2 + sigma**2,
-        "inter_spectrum":  torch.abs(S_vals_2*S_vals_1)
+        "inter_spectrum":  torch.abs(S_vals_2*S_vals_1),
         "spectrum": spectrum,
     }
     

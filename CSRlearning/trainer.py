@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from evaluation import compute_alignment, compute_alignment
+from evaluation import compute_alignment, compute_covariance
 from experiment_logging import (
     log_alignment_artifacts,
     log_data_info,
@@ -15,6 +15,7 @@ from experiment_logging import (
     log_vector_field_metrics,
 )
 from utils import instantiate, set_seed, compute_running_average, encode
+from pprint import pprint
 
 
 class CCAExperimentRunner:
@@ -60,7 +61,7 @@ class CCAExperimentRunner:
             elif cast_type=="float":
                 return module.float()
 
-        self.encoders = [cast(encoder,cfg.type).to(device) for encoder in self.encoders]
+        self.encoders = [cast(encoder,cfg.type).to(self.device) for encoder in self.encoders]
         self.algorithm = cast(self.algorithm,cfg.type).to(self.device)
 
 
@@ -87,7 +88,7 @@ class CCAExperimentRunner:
 
     def  step(self):
 
-            self.algorithm.update_internal_state(self.data_gen)
+            self.algorithm.update_internal_state(self.loader)
             for opt in self.optimizers:
                 opt.zero_grad()
             data = next(self.loader)
@@ -106,12 +107,12 @@ class CCAExperimentRunner:
         for epoch in range(self.cfg.epochs):
             print(f"epoch: {epoch}")
             for step in range(self.cfg.steps_per_epoch):
-                
+                start= time.time()
                 loss = self.step()
-                metrics = self.tracker(loss, self.encoders[0].weight.grad)
+                end = time.time()
+                metrics, _ = self.tracker.track(loss, self.encoders[0].weight.grad, step, start, end)
                 self.logger.log_metrics({**metrics,
                                     "epoch": epoch,
-                                    "step": step,
                                     }, log_name="metrics")                
 
 
@@ -128,26 +129,18 @@ class CCAExperimentRunner:
             start = time.time()
             loss = self.step()
             end = time.time()
-            metrics = self.tracker.track(loss, 
+            metrics, artifact_dict = self.tracker.track(loss, 
                                          self.encoders[0].weight.grad, 
-                                         spectral_metrics, 
                                          step,
-                                         start,end)
+                                         start,end,
+                                         spectral_metrics=spectral_metrics)
             self.logger.log_metrics( metrics, log_name="metrics")
 
-
-
             if np.mod(step, 100) == 0:
-                logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
+                self.logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
 
             if np.mod(step, 10) == 0:
-                print(f"step: {step}")
-                print(f"spectrum: {(s1.item(), s2.item())}")
-                print(f"target spectrum: {(ts1.item(), ts2.item())}")
-                print(f"alignment: {(align1.item(), align2.item())}")
-                print(f"vector field norm: {metrics['running_grad_norm']}")
-                print(f"objective: {metrics['loss']}")
-                print(f"avg time: {avg_time}")
+                pprint(metrics)
 
     def compute_spectral_metrics(self):
         metrics = {}
@@ -209,7 +202,7 @@ def build_optimizers_and_schedulers(
         optimizer, **scheduler_spec.kwargs)
 
     if not tied_encoders:
-        optimizers + [optimizer_ctor(encoder.parameters()) for encoder in encoders]
+        optimizers = [optimizer_ctor(encoder.parameters()) for encoder in encoders]
     else:
          optimizers = [optimizer_ctor(first_encoder.parameters())]
 
@@ -227,15 +220,19 @@ class Tracker:
         self.avg_time = 0.
     def track(self,  loss, 
                      grad, 
-                     spectral_metrics,
                      step,
-                     start, end):
+                     start, end,
+                     spectral_metrics=None):
         self.avg_time = (1 - 1.0 / (step + 1)) * self.avg_time + (1.0 / (step + 1)) * (
                 end - start
             )
-        grad_norm, running_grad_norm = compute_vector_field_norm(grad)
+        grad_norm, running_grad_norm = self.compute_vector_field_norm(grad)
         
-        spectral_metrics, artifact_dict = track_spectral_metrics(spectral_metrics)
+        if spectral_metrics:
+            spectral_metrics, artifact_dict = self.track_spectral_metrics(spectral_metrics)
+        else:
+            spectral_metrics = {}
+            artifact_dict = {}
 
         metrics =  {
                     "loss":loss.item(),

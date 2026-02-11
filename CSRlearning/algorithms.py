@@ -13,8 +13,8 @@ from evaluation import (
     compute_semigrad_spectrum,
     compute_unconstrained_cca_spectrum,
 )
-from implicit_linear_predictor import get_regressor_spec, build_regressor
-
+from linear_regressor import get_regressor_spec, build_regressor
+from utils import encode
 
 class BaseAlgorithm(nn.Module):
     def __init__(self):
@@ -152,7 +152,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
                                             with_adjoint=True)
         super().__init__(latent_dim=latent_dim, 
                          reg=reg, 
-                         n_iter= n_iter, 
+                         n_iter= 1, 
                          regressor_spec= regressor_spec)
 
 
@@ -225,7 +225,7 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
                                             with_adjoint=False)
         super().__init__(latent_dim=latent_dim, 
                  reg=reg, 
-                 n_iter= n_iter, 
+                 n_iter= 1, 
                  regressor_spec= regressor_spec)
 
 
