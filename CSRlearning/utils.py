@@ -3,6 +3,8 @@ import importlib
 import math
 import torch
 
+from csr_types import EncodedBatch
+
 def set_seed(seed):
     import random
     import numpy as np
@@ -45,7 +47,7 @@ def encode(data, encoders, stop_grad = False):
     else:
         last_output = [encoders[i](data[i]) for i in range(1,len(data))]
     output = tuple(first_output + last_output)
-    return output
+    return EncodedBatch(output)
 
 class MomentumOptimizer:
     def __init__(self, params, lr=0.01):
@@ -74,5 +76,3 @@ class CosineScheduler:
                                                 self.m_end
                                                 )
         self.optimizer.lr =  self.m_current
-
-

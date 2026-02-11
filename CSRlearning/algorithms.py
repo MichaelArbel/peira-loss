@@ -15,6 +15,7 @@ from evaluation import (
 )
 from linear_regressor import get_regressor_spec, build_regressor
 from utils import encode
+from csr_types import AlgorithmState
 
 class BaseAlgorithm(nn.Module):
     def __init__(self):
@@ -27,11 +28,11 @@ class BaseAlgorithm(nn.Module):
     def compute_spectrum(self):
         raise NotImplementedError
 
-    def compute_loss(self, X, Y):
+    def compute_loss(self, X, Y, state):
         raise NotImplementedError
 
     def update_internal_state(self, data_gen):
-        pass
+        return AlgorithmState()
 
 
 
@@ -42,7 +43,7 @@ class UnconstrainedCCAAlgorithm(BaseAlgorithm):
         target_spectrum = target_spectrum_info["spectrum"]
         return compute_unconstrained_cca_spectrum(cov_spectrum, target_spectrum)
 
-    def compute_loss(self, X, Y):
+    def compute_loss(self, X, Y, state):
         return eckhart_young_loss(X, Y)
 
 class CSEAlgorithm(BaseAlgorithm):
@@ -64,7 +65,7 @@ class SSLAlgorithm(BaseAlgorithm):
 
 
 class CSEExactRegressionAlgorithm(CSEAlgorithm):
-    def compute_loss(self, X, Y):
+    def compute_loss(self, X, Y, state):
         return cse_loss(X, Y, None, self.reg)
 
 
@@ -96,7 +97,10 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
             with torch.no_grad():
                 data = next(data_gen)
                 outputs = encode(data, self.encoders)
-            self.pred = self.regressor(outputs[0].detach(), outputs[1].detach())
+            self.pred = self.regressor(outputs.x1.detach(), outputs.x2.detach())
+        if isinstance(self.pred, tuple) and len(self.pred) == 2:
+            return AlgorithmState(pred=self.pred[0], adjoint=self.pred[1])
+        return AlgorithmState(pred=self.pred)
 
 
 
@@ -115,8 +119,8 @@ class CSEStoCompGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y):
-        pred, adjoint_pred = self.pred
+    def compute_loss(self, X, Y, state):
+        pred, adjoint_pred = state.pred, state.adjoint
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
 
 
@@ -136,8 +140,8 @@ class CSEBilevelStoGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y):
-        pred, adjoint_pred = self.pred
+    def compute_loss(self, X, Y, state):
+        pred, adjoint_pred = state.pred, state.adjoint
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
 
 
@@ -163,7 +167,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
     def update_internal_state(self, data_gen):
         pass
 
-    def compute_loss(self, X, Y):
+    def compute_loss(self, X, Y, state):
         pred = self.regressor.pred
         adjoint = self.regressor.adjoint
         X_det, Y_det = X.detach(), Y.detach()
@@ -188,8 +192,8 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y):
-        loss = linear_probe_loss(X, Y, self.pred, self.reg, symmetric=False)
+    def compute_loss(self, X, Y, state):
+        loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
         return loss
 
@@ -208,8 +212,8 @@ class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorith
                  n_iter= n_iter, 
                  regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y):
-        loss = linear_probe_loss(X, Y, self.pred, self.reg, symmetric=False)
+    def compute_loss(self, X, Y, state):
+        loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
         return loss
 
@@ -236,7 +240,7 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
     def update_internal_state(self, data_gen):
         pass
 
-    def compute_loss(self, X, Y):
+    def compute_loss(self, X, Y, state):
         pred = self.regressor.pred
         loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])

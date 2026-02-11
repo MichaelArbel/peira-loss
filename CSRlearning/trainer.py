@@ -88,12 +88,13 @@ class CCAExperimentRunner:
 
     def  step(self):
 
-            self.algorithm.update_internal_state(self.loader)
+            state = self.algorithm.update_internal_state(self.loader)
             for opt in self.optimizers:
                 opt.zero_grad()
+            
             data = next(self.loader)
-            output = encode(data, self.encoders, self.algorithm.stop_grad)
-            loss = self.algorithm.compute_loss(*output)
+            output = encode(data, self.encoders, self.algorithm.stop_grad)    
+            loss = self.algorithm.compute_loss(output.x1, output.x2, state)
             loss.backward()
 
 
@@ -145,8 +146,10 @@ class CCAExperimentRunner:
     def compute_spectral_metrics(self):
         metrics = {}
 
-        inter_cov, cov_lists = compute_covariance(self.encoders, 
-                                                  self.loader)
+        inter_cov, cov_lists = compute_covariance(
+            lambda data: encode(data, self.encoders, self.algorithm.stop_grad),
+            self.loader,
+        )
 
         intra_cov = cov_lists[0]
 
