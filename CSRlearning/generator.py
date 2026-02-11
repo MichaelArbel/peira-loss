@@ -1,5 +1,7 @@
 import torch
 
+from csr_types import DataInfo
+
 class LinearCCADataGenerator:
     """
     A generator that samples fresh Gaussian data on the fly.
@@ -112,16 +114,16 @@ def generate_correlated_matrices(dim_z, dim_x1, dim_x2, sigma, device, dtype, si
     cov_1 = P1@torch.diag(S_vals_1**2 + sigma**2)@P1.t()
     cov_2 = P1@torch.diag(S_vals_2**2 + sigma**2)@P1.t()
     
-    info = {
-        "singular_vectors_1": P1,
-        "singular_vectors_2": P1,
-        "cov_1": cov_1,
-        "cov_2": cov_2,
-        "intra_spectrum_1": S_vals_1**2 + sigma**2,
-        "intra_spectrum_2": S_vals_2**2 + sigma**2,
-        "inter_spectrum":  torch.abs(S_vals_2*S_vals_1),
-        "spectrum": spectrum,
-    }
+    info = DataInfo(
+        singular_vectors_1=P1,
+        singular_vectors_2=P1,
+        cov_1=cov_1,
+        cov_2=cov_2,
+        intra_spectrum_1=S_vals_1**2 + sigma**2,
+        intra_spectrum_2=S_vals_2**2 + sigma**2,
+        inter_spectrum=torch.abs(S_vals_2 * S_vals_1),
+        spectrum=spectrum,
+    )
     
     return A1, A2, info
 
@@ -147,7 +149,6 @@ def generate_deterministic_data(b=512, d=[10, 128, 128], device='cpu', dtype=tor
     eps_2 = data[:, d[1]+d[0]:]
 
     return z, eps_1, eps_2
-
 
 
 

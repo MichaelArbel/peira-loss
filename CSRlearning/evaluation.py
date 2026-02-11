@@ -72,9 +72,9 @@ def compute_semigrad_spectrum(covariance_spectrum, full_target_spectrum, reg):
     # intra_spectrum_x = (Sx ** 2 + sigma ** 2)
     # intra_spectrum_y = (Sy ** 2 + sigma ** 2)
 
-    inter_spectrum =  full_target_spectrum["inter_spectrum"]
-    intra_spectrum_x = full_target_spectrum["intra_spectrum_1"]
-    intra_spectrum_y = full_target_spectrum["intra_spectrum_2"]
+    inter_spectrum = full_target_spectrum.inter_spectrum
+    intra_spectrum_x = full_target_spectrum.intra_spectrum_1
+    intra_spectrum_y = full_target_spectrum.intra_spectrum_2
 
     Corr = inter_spectrum / intra_spectrum_x
     thresh = reg / intra_spectrum_x

@@ -120,9 +120,10 @@ class CCAExperimentRunner:
     def run_vector_field_experiment(self):
         set_seed(self.cfg.init_seed)
         self.reset_parameters(mode=self.cfg.init_mode, scale=self.cfg.init_scale)
-        info = {k: (v.cpu().numpy() if torch.is_tensor(v) else v)
-                    for k, v in self.loader.info.items()
-                }
+        info = {
+            k: (v.cpu().numpy() if torch.is_tensor(v) else v)
+            for k, v in self.loader.info.items()
+        }
         self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
         for step in range(self.cfg.steps_per_epoch):
             with torch.no_grad():
@@ -173,12 +174,18 @@ class CCAExperimentRunner:
 
         if self.tied_encoders:
             W = self.encoders[0].weight
-            B = target_spectrum_info["cov_1"] 
-            U = target_spectrum_info["singular_vectors_1"] 
+            B = target_spectrum_info.cov_1
+            U = target_spectrum_info.singular_vectors_1
         else:
             W = torch.cat([self.encoders[0].weight, self.encoders[1].weight], dim=0)
-            B = torch.cat([target_spectrum_info["cov_1"] , target_spectrum_info["cov_2"] ], dim=0)
-            U = torch.cat([target_spectrum_info["singular_vectors_1"] ,target_spectrum_info["singular_vectors_2"] ], dim=0)
+            B = torch.cat([target_spectrum_info.cov_1, target_spectrum_info.cov_2], dim=0)
+            U = torch.cat(
+                [
+                    target_spectrum_info.singular_vectors_1,
+                    target_spectrum_info.singular_vectors_2,
+                ],
+                dim=0,
+            )
         
         eigvals, eigvecs = torch.linalg.eigh(B)
         sqrt_B = eigvecs @ torch.diag(torch.sqrt(eigvals.clamp(min=0))) @ eigvecs.T

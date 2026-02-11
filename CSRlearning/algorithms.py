@@ -32,7 +32,7 @@ class BaseAlgorithm(nn.Module):
         raise NotImplementedError
 
     def update_internal_state(self, data_gen):
-        return AlgorithmState()
+        return AlgorithmState(extras={"consumed_batches": 0})
 
 
 
@@ -40,7 +40,7 @@ class BaseAlgorithm(nn.Module):
 class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
     def compute_spectrum(self, cov_spectrum, target_spectrum_info):
-        target_spectrum = target_spectrum_info["spectrum"]
+        target_spectrum = target_spectrum_info.spectrum
         return compute_unconstrained_cca_spectrum(cov_spectrum, target_spectrum)
 
     def compute_loss(self, X, Y, state):
@@ -51,7 +51,7 @@ class CSEAlgorithm(BaseAlgorithm):
         super().__init__()
         self.reg = reg
     def compute_spectrum(self, cov_spectrum, target_spectrum_info):
-        target_spectrum = target_spectrum_info["spectrum"]
+        target_spectrum = target_spectrum_info.spectrum
         return compute_cse_spectrum(cov_spectrum,target_spectrum , self.reg)
 
 class SSLAlgorithm(BaseAlgorithm):
@@ -98,9 +98,10 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
                 data = next(data_gen)
                 outputs = encode(data, self.encoders)
             self.pred = self.regressor(outputs.x1.detach(), outputs.x2.detach())
+        consumed = self.n_iter
         if isinstance(self.pred, tuple) and len(self.pred) == 2:
-            return AlgorithmState(pred=self.pred[0], adjoint=self.pred[1])
-        return AlgorithmState(pred=self.pred)
+            return AlgorithmState(pred=self.pred[0], adjoint=self.pred[1], extras={"consumed_batches": consumed})
+        return AlgorithmState(pred=self.pred, extras={"consumed_batches": consumed})
 
 
 
@@ -165,7 +166,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
         optimizers.append(self.regressor.optimizer)
 
     def update_internal_state(self, data_gen):
-        pass
+        return AlgorithmState(extras={"consumed_batches": 0})
 
     def compute_loss(self, X, Y, state):
         pred = self.regressor.pred
@@ -238,7 +239,7 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
         optimizers.append(self.regressor.optimizer)
 
     def update_internal_state(self, data_gen):
-        pass
+        return AlgorithmState(extras={"consumed_batches": 0})
 
     def compute_loss(self, X, Y, state):
         pred = self.regressor.pred
