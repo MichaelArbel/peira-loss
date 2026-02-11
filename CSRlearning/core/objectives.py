@@ -1,5 +1,5 @@
 import torch
-from linalg_utils import PDInverse, add_ridge
+from .linalg_utils import PDInverse, add_ridge
 
 
 
@@ -68,7 +68,6 @@ def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
     intra_cov = torch.sum((cov_u + cov_v) ** 2)
 
     return -4.0 * inter_cov + intra_cov
-
 
 
 

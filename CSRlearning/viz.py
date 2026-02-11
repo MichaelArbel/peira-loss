@@ -255,11 +255,11 @@ def plot_grad_norm(df, figures_dir):
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     method_label = {
-        "algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
-        "algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
-        "algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
-        "algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
-        "algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+        "core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "core.algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "core.algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "core.algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
     }
     
     cmap = plt.get_cmap('magma') 
@@ -409,11 +409,11 @@ def plot_spectral_stack(df, figures_dir):
     #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     method_label = {
-        "algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
-        "algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
-        "algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
-        "algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
-        "algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
+        "core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm": "CSEExact",
+        "core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm": "CSEBilevel",
+        "core.algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm": "CSEBilevelJoint",
+        "core.algorithms.SemiGradientSSLAlgorithm": "SemiGradientSSL",
+        "core.algorithms.UnconstrainedCCAAlgorithm": "UnconstrainedCCA",
     }
 
     _plot_spectral_stack(df_group, methods, init_scales, method_label, 
@@ -534,7 +534,6 @@ def _plot_spectral_stack(df_group, methods, init_scales, method_label, figures_d
         # Set the font size of the numbers (ticks)
         cbar.ax.tick_params(labelsize=12)
         save_and_show(f'{data}_image_{method_label.get(method, method)}', figures_dir= figures_dir)
-
 
 
 

@@ -7,7 +7,8 @@ import torch.nn as nn
 
 from evaluation import compute_alignment
 from factory import instantiate, build_optimizer_bundle
-from pipeline import compute_spectral_metrics, encode
+from core.pipeline import encode
+from evaluation import compute_spectral_metrics
 from utils import set_seed, compute_running_average
 from pprint import pprint
 
@@ -127,14 +128,17 @@ class CCAExperimentRunner:
             start = time.time()
             loss = self.step()
             end = time.time()
-            metrics, artifact_dict = self.tracker.track(loss, 
-                                         self.encoders[0].weight.grad, 
-                                         step,
-                                         start,end,
-                                         spectral_metrics=spectral_metrics)
+            metrics, artifact_dict = self.tracker.track(
+                loss,
+                self.encoders[0].weight.grad,
+                step,
+                start,
+                end,
+                spectral_metrics=spectral_metrics,
+            )
             self.logger.log_metrics( metrics, log_name="metrics")
 
-            if np.mod(step, 100) == 0:
+            if spectral_metrics is not None and np.mod(step, 100) == 0:
                 self.logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
 
             if np.mod(step, 10) == 0:

@@ -49,9 +49,16 @@ class DataInfo:
 
 
 class DataSource(Protocol):
-    info: DataInfo
+    """
+    Protocol for infinite data sources. Implementations must allow calling
+    __next__() indefinitely without raising StopIteration.
+    """
+    info: Optional[DataInfo]
 
     def __next__(self) -> Tuple[torch.Tensor, ...]:
+        ...
+
+    def sample(self, batch_size: Optional[int] = None) -> Tuple[torch.Tensor, ...]:
         ...
 
 

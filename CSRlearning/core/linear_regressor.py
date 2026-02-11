@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from typing import Callable, Dict, Any, Optional, Sequence, Tuple
-from linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
-from objectives import linear_probe_loss, adjoint_pred_loss
+from .linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
+from .objectives import linear_probe_loss, adjoint_pred_loss
 from factory import instantiate
 # ---------------------------
 # Default inner solver: arbitrary optimizer (user-provided)
@@ -151,5 +151,4 @@ def build_regressor(spec, latent_dim, reg):
         symmetric=kwargs.get("symmetric", True),
         with_adjoint=kwargs.get("with_adjoint", False),
     )
-
 

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from objectives import (
+from .objectives import (
     cse_auxiliary_loss,
     cse_loss,
     eckhart_young_loss,
@@ -13,9 +13,9 @@ from evaluation import (
     compute_semigrad_spectrum,
     compute_unconstrained_cca_spectrum,
 )
-from linear_regressor import get_regressor_spec, build_regressor
-from pipeline import encode
-from core_types import AlgorithmState
+from .linear_regressor import get_regressor_spec, build_regressor
+from .pipeline import encode
+from .core_types import AlgorithmState, DataSource
 
 class BaseAlgorithm(nn.Module):
     def __init__(self):
@@ -31,7 +31,7 @@ class BaseAlgorithm(nn.Module):
     def compute_loss(self, X, Y, state):
         raise NotImplementedError
 
-    def update_internal_state(self, data_gen):
+    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
 
@@ -92,7 +92,7 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
             optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=True)
         self.encoders = encoders
 
-    def update_internal_state(self,data_gen):
+    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         for _ in range(self.n_iter):
             with torch.no_grad():
                 data = next(data_gen)
@@ -174,7 +174,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
         super().configure(encoders, optimizers)
         optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
 
-    def update_internal_state(self, data_gen):
+    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def compute_loss(self, X, Y, state):
@@ -191,7 +191,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
 class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "linear_regressors.MomentumRegressor"
+        regressor = "core.linear_regressor.MomentumRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 
@@ -211,7 +211,7 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
 class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "linear_regressors.IterativeDiffRegressor"
+        regressor = "core.linear_regressor.IterativeDiffRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 
@@ -247,7 +247,7 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
         super().configure(encoders, optimizers)
         optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
 
-    def update_internal_state(self, data_gen):
+    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def compute_loss(self, X, Y, state):

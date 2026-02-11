@@ -1,17 +1,18 @@
 import torch
 
-from core_types import DataInfo
+from core.core_types import DataInfo, DataSource
 
-class LinearCCADataGenerator:
+class LinearCCADataGenerator(DataSource):
     """
     A generator that samples fresh Gaussian data on the fly.
     """
-    def __init__(self, d1=50, d2=50, k=10, sigma=0.1, batch_size=64, 
-                device='cpu',
+    def __init__(self, d1=50, d2=50, k=10, sigma=0.1, batch_size=64,
+                device="cpu",
                 dtype=torch.float32,
                 deterministic=False,
                 empirical=False,
-                sign_flip=False):
+                sign_flip=False,
+                seed=0):
 
         self.d1 = d1
         self.d2 = d2
@@ -23,47 +24,55 @@ class LinearCCADataGenerator:
         self.deterministic = deterministic
         self.empirical = empirical
         self.sign_flip = sign_flip
+        self.seed = seed
+        self.rng = torch.Generator(device=self.device)
+        self.rng.manual_seed(seed)
 
         # Pre-define fixed projection matrices (Ground Truth)
         # These define the linear relationship that the CCA should find.
-        self.A1, self.A2, self.info = generate_correlated_matrices(k, d1, d2, sigma, 
-                                                                    device, dtype, 
-                                                                    sign_flip=self.sign_flip)
+        self.A1, self.A2, self.info = generate_correlated_matrices(
+            k,
+            d1,
+            d2,
+            sigma,
+            device,
+            dtype,
+            sign_flip=self.sign_flip,
+        )
 
         #self.A1 = torch.randn(k, d1, device=device, dtype=dtype)
         #self.A2 = torch.randn(k, d2, device=device, dtype=dtype)
-        if deterministic:
-            if empirical:
-                z = torch.randn(self.batch_size, self.k, device=self.device, dtype=self.dtype)
-                eps_1 = torch.randn(self.batch_size, self.d1, device=self.device, dtype=self.dtype)
-                eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=self.dtype)
-
-            
-            else:
-
-                z, eps_1, eps_2 = generate_deterministic_data(b=self.batch_size, d=[self.k, self.d1, self.d2], 
-                                                          device=device, dtype=dtype)
-
-            self.data = self.gen_data(z,eps_1,eps_2)
-
-
     def __iter__(self):
         """Allows use in: for x1, x2 in generator:"""
         return self
 
     def __next__(self):
         """Samples a fresh batch of correlated Gaussian data."""
-        # 1. Sample shared latent variable z ~ N(0, I)
+        return self.sample()
+
+    def sample(self, batch_size=None):
+        """Samples a batch of correlated Gaussian data."""
+        b = self.batch_size if batch_size is None else batch_size
         if self.deterministic:
-            return self.data
+            if self.empirical:
+                z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
+                eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
+                eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
+            else:
+                z, eps_1, eps_2 = generate_deterministic_data(
+                    b=b,
+                    d=[self.k, self.d1, self.d2],
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+            return self.gen_data(z, eps_1, eps_2)
 
-        z = torch.randn(self.batch_size, self.k, device=self.device, dtype=self.dtype)
-        eps_1 = torch.randn(self.batch_size, self.d1, device=self.device, dtype=self.dtype)
-        eps_2 = torch.randn(self.batch_size, self.d2, device=self.device, dtype=self.dtype)
-        return self.gen_data(z,eps_1,eps_2)
-        # 2. Project to high-dimensional views
+        z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
+        eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
+        eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
+        return self.gen_data(z, eps_1, eps_2)
 
-    def gen_data(self,z,eps_1,eps_2):
+    def gen_data(self, z, eps_1, eps_2):
         x1 = z @ self.A1.t() + self.sigma * eps_1
         x2 = z @ self.A2.t() + self.sigma * eps_2
         return x1, x2
@@ -149,5 +158,3 @@ def generate_deterministic_data(b=512, d=[10, 128, 128], device='cpu', dtype=tor
     eps_2 = data[:, d[1]+d[0]:]
 
     return z, eps_1, eps_2
-
-

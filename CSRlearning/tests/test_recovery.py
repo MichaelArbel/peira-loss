@@ -176,7 +176,7 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
     }
 
     regressor_spec = {
-        "name": "implicit_linear_predictor.IterativeDiffRegressor",
+        "name": "core.linear_regressor.IterativeDiffRegressor",
         "kwargs": {"symmetric": True, "with_adjoint": True},
         "optimizer": {"name": "torch.optim.SGD", "kwargs": {"lr": 1.0}},
         "scheduler": {
@@ -187,25 +187,25 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
 
     return [
         AlgorithmTestConfig(
-            algorithm_name="algorithms.CanonicalSubspaceEmbeddingExactAlgorithm",
+            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm",
+            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
+            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithms.SemiGradientSSLAlgorithm",
+            algorithm_name="core.algorithms.SemiGradientSSLAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec={
-                "name": "implicit_linear_predictor.MomentumRegressor",
+                "name": "core.linear_regressor.MomentumRegressor",
                 "kwargs": {"symmetric": False, "with_adjoint": False},
                 "scheduler": {
                     "name": "utils.CosineScheduler",
@@ -214,7 +214,7 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
             },
         ),
         AlgorithmTestConfig(
-            algorithm_name="algorithms.UnconstrainedCCAAlgorithm",
+            algorithm_name="core.algorithms.UnconstrainedCCAAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
@@ -232,7 +232,7 @@ def main() -> None:
         "--algorithm",
         type=str,
         default=None,
-        help="Run a single algorithm by full class path (e.g., algorithms.CanonicalSubspaceEmbeddingExactAlgorithm)",
+        help="Run a single algorithm by full class path (e.g., core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm)",
     )
     args = parser.parse_args()
 
