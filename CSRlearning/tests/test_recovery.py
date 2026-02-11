@@ -8,7 +8,7 @@ import torch
 
 from evaluation import compute_alignment
 from generator import LinearCCADataGenerator
-from utils import instantiate
+from factory import instantiate
 
 
 @dataclass

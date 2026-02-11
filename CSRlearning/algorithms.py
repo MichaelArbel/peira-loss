@@ -14,15 +14,15 @@ from evaluation import (
     compute_unconstrained_cca_spectrum,
 )
 from linear_regressor import get_regressor_spec, build_regressor
-from utils import encode
-from csr_types import AlgorithmState
+from pipeline import encode
+from core_types import AlgorithmState
 
 class BaseAlgorithm(nn.Module):
     def __init__(self):
         super().__init__()
         self.stop_grad = False
 
-    def configure(self, encoders, optimizers, schedulers):
+    def configure(self, encoders, optimizers):
         pass
 
     def compute_spectrum(self):
@@ -87,9 +87,9 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
                                         self.reg)
         self.encoders = None
 
-    def configure(self, encoders, optimizers, schedulers):
+    def configure(self, encoders, optimizers):
         if hasattr(self.regressor, "scheduler"):
-            schedulers.append(self.regressor.scheduler)
+            optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=True)
         self.encoders = encoders
 
     def update_internal_state(self,data_gen):
@@ -170,9 +170,9 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
                          regressor_spec= regressor_spec)
 
 
-    def configure(self, encoders, optimizers, schedulers):
-        super().configure(encoders, optimizers, schedulers)
-        optimizers.append(self.regressor.optimizer)
+    def configure(self, encoders, optimizers):
+        super().configure(encoders, optimizers)
+        optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
 
     def update_internal_state(self, data_gen):
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
@@ -191,7 +191,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
 class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "MomentumRegressor"
+        regressor = "linear_regressors.MomentumRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 
@@ -211,7 +211,7 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
 class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "IterativeDiffRegressor"
+        regressor = "linear_regressors.IterativeDiffRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 
@@ -243,9 +243,9 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
                  regressor_spec= regressor_spec)
 
 
-    def configure(self, encoders, optimizers, schedulers):
-        super().configure(encoders, optimizers, schedulers)
-        optimizers.append(self.regressor.optimizer)
+    def configure(self, encoders, optimizers):
+        super().configure(encoders, optimizers)
+        optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
 
     def update_internal_state(self, data_gen):
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)

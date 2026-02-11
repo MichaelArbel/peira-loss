@@ -1,6 +1,6 @@
 import torch
 
-from csr_types import DataInfo
+from core_types import DataInfo
 
 class LinearCCADataGenerator:
     """
@@ -149,6 +149,5 @@ def generate_deterministic_data(b=512, d=[10, 128, 128], device='cpu', dtype=tor
     eps_2 = data[:, d[1]+d[0]:]
 
     return z, eps_1, eps_2
-
 
 

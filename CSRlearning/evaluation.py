@@ -1,7 +1,6 @@
 import torch
 from linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
 
-
 def compute_alignment(M, U, B=None):
     # 4. Compute Alignment: cosine_sim(u_i, M u_i)
     # M: [k,k] matrix
@@ -22,29 +21,6 @@ def compute_alignment(M, U, B=None):
     
 
     return dot_products / (norms_M_ui + 1e-8)
-
-def compute_covariance(encode_fn, data_gen, num_batches=10):
-    # 2. Estimate F = E[U(x)U(x)^T] using several fresh batches
-    for iteration in range(num_batches):
-        data = next(data_gen)
-        outputs = encode_fn(data)
-        views = outputs.views
-        num_cov = len(views) + 1
-        if iteration == 0:
-            k = views[0].shape[1]
-            Covs = [torch.zeros((k, k), device=views[0].device) for _ in range(num_cov)]
-
-        # Center u to compute the actual covariance if necessary
-        Covs[0] +=  torch.matmul(views[1].t(), views[0]) / (views[0].shape[0] * num_batches)
-        for i, output in enumerate(views):
-            Covs[i+1] += torch.matmul(output.t(), output) / (output.shape[0] * num_batches)
-  
-    return Covs[0], Covs[1:]
-
-
-
-
-
 
 def compute_cse_spectrum(covariance_spectrum, target_spectrum, reg):
     #_, cov_lists = compute_covariance(encoders, data_gen, num_batches=100)

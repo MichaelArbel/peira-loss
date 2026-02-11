@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from evaluation import compute_alignment, compute_covariance
+from evaluation import compute_alignment
 from experiment_logging import (
     log_alignment_artifacts,
     log_data_info,
@@ -14,7 +14,10 @@ from experiment_logging import (
     log_vector_field_artifacts,
     log_vector_field_metrics,
 )
-from utils import instantiate, set_seed, compute_running_average, encode
+from factory import instantiate
+from pipeline import compute_covariance, encode
+from utils import set_seed, compute_running_average
+from core_types import OptimizerBundle
 from pprint import pprint
 
 
@@ -45,15 +48,19 @@ class CCAExperimentRunner:
         else:
             view2 = nn.Linear(d2, latent_dim, bias=False)
 
-        self.encoders, self.optimizers, self.schedulers = build_optimizers_and_schedulers([
-                                                                    view1,view2], 
-                                                                    self.tied_encoders,
-                                                                    cfg.optimizer,
-                                                                    cfg.scheduler)
+        self.encoders, optimizers, schedulers = build_optimizers_and_schedulers(
+            [view1, view2],
+            self.tied_encoders,
+            cfg.optimizer,
+            cfg.scheduler,
+        )
+        self.optimizers = OptimizerBundle()
+        for opt, sch in zip(optimizers, schedulers):
+            self.optimizers.add(opt, sch, managed_by_algorithm=False)
 
 
         self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
-        self.algorithm.configure(self.encoders, self.optimizers, self.schedulers)
+        self.algorithm.configure(self.encoders, self.optimizers)
 
         def cast(module, cast_type):
             if cast_type=="double":
@@ -89,8 +96,7 @@ class CCAExperimentRunner:
     def  step(self):
 
             state = self.algorithm.update_internal_state(self.loader)
-            for opt in self.optimizers:
-                opt.zero_grad()
+            self.optimizers.zero_grad()
             
             data = next(self.loader)
             output = encode(data, self.encoders, state.stop_grad)
@@ -98,10 +104,7 @@ class CCAExperimentRunner:
             loss.backward()
 
 
-            for opt in self.optimizers:
-                opt.step()
-            for scheduler in self.schedulers:
-                scheduler.step()
+            self.optimizers.step()
             return loss
 
     def train(self):
