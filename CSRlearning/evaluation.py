@@ -1,6 +1,6 @@
 import torch
 from linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
-
+from utils import encode
 
 
 def compute_alignment(M, U, B=None):
@@ -32,7 +32,7 @@ def compute_covariance(encoders, data_gen, num_batches=10):
         num_cov = len(outputs) +1
         if iteration == 0:
             k = outputs[0].shape[1]
-            Covs = [torch.zeros((k, k), device=outputs[i].device) for i in num_cov]
+            Covs = [torch.zeros((k, k), device=outputs[0].device) for i in range(num_cov)]
 
         # Center u to compute the actual covariance if necessary
         Covs[0] +=  torch.matmul(outputs[1].t(), outputs[0]) / (outputs[0].shape[0] * num_batches)

@@ -230,6 +230,7 @@ class Tracker:
         
         if spectral_metrics:
             spectral_metrics, artifact_dict = self.track_spectral_metrics(spectral_metrics)
+            artifact_dict["iter"] =  step
         else:
             spectral_metrics = {}
             artifact_dict = {}
@@ -261,7 +262,6 @@ class Tracker:
         artifact_dict = {
                         "alignment": metrics["alignment"].cpu().numpy(),
                         "spectrum": metrics['spectrum'].cpu().numpy(),
-                        "iter": step,
                         }
         return spectral_metrics, artifact_dict
 

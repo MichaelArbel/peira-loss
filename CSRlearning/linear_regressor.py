@@ -142,8 +142,8 @@ def build_regressor(spec, latent_dim, reg):
     pred_init = torch.zeros(k, k)
     adjoint_init = torch.zeros(k, k)
     kwargs = spec.get("kwargs", {})
-    optimizer_spec = spec.get("optimizer", {})
-    scheduler_spec = spec.get("scheduler", {})
+    optimizer_spec = kwargs.get("optimizer", {})
+    scheduler_spec = kwargs.get("scheduler", {})
     assert "kwargs" in scheduler_spec and "T_max" in scheduler_spec["kwargs"]
 
     if regressor_cls is MomentumRegressor:

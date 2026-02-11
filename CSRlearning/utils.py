@@ -1,7 +1,7 @@
 import os
 import importlib
 import math
-
+import torch
 
 def set_seed(seed):
     import random
@@ -41,9 +41,9 @@ def encode(data, encoders, stop_grad = False):
     first_output = [encoders[0](data[0])]
     if stop_grad:
         with torch.no_grad():
-            last_output = [encoders[i](data[i]) for i range(1,len(data))]
+            last_output = [encoders[i](data[i]) for i in range(1,len(data))]
     else:
-        last_output = [encoders[i](data[i]) for i range(1,len(data))]
+        last_output = [encoders[i](data[i]) for i in range(1,len(data))]
     output = tuple(first_output + last_output)
     return output
 
