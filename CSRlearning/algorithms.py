@@ -32,7 +32,7 @@ class BaseAlgorithm(nn.Module):
         raise NotImplementedError
 
     def update_internal_state(self, data_gen):
-        return AlgorithmState(extras={"consumed_batches": 0})
+        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
 
 
@@ -100,8 +100,17 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
             self.pred = self.regressor(outputs.x1.detach(), outputs.x2.detach())
         consumed = self.n_iter
         if isinstance(self.pred, tuple) and len(self.pred) == 2:
-            return AlgorithmState(pred=self.pred[0], adjoint=self.pred[1], extras={"consumed_batches": consumed})
-        return AlgorithmState(pred=self.pred, extras={"consumed_batches": consumed})
+            return AlgorithmState(
+                pred=self.pred[0],
+                adjoint=self.pred[1],
+                extras={"consumed_batches": consumed},
+                stop_grad=self.stop_grad,
+            )
+        return AlgorithmState(
+            pred=self.pred,
+            extras={"consumed_batches": consumed},
+            stop_grad=self.stop_grad,
+        )
 
 
 
@@ -166,7 +175,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
         optimizers.append(self.regressor.optimizer)
 
     def update_internal_state(self, data_gen):
-        return AlgorithmState(extras={"consumed_batches": 0})
+        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def compute_loss(self, X, Y, state):
         pred = self.regressor.pred
@@ -239,7 +248,7 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
         optimizers.append(self.regressor.optimizer)
 
     def update_internal_state(self, data_gen):
-        return AlgorithmState(extras={"consumed_batches": 0})
+        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def compute_loss(self, X, Y, state):
         pred = self.regressor.pred

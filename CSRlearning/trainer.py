@@ -93,7 +93,7 @@ class CCAExperimentRunner:
                 opt.zero_grad()
             
             data = next(self.loader)
-            output = encode(data, self.encoders, self.algorithm.stop_grad)    
+            output = encode(data, self.encoders, state.stop_grad)
             loss = self.algorithm.compute_loss(output.x1, output.x2, state)
             loss.backward()
 
@@ -148,7 +148,7 @@ class CCAExperimentRunner:
         metrics = {}
 
         inter_cov, cov_lists = compute_covariance(
-            lambda data: encode(data, self.encoders, self.algorithm.stop_grad),
+            lambda data: encode(data, self.encoders, False),
             self.loader,
         )
 
