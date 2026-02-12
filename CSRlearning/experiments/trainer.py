@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 
 from experiments.evaluation import compute_alignment
-from factory import instantiate, build_optimizer_bundle
+from experiments.factory import instantiate, build_optimizer_bundle
 from experiments.pipeline import encode
 from experiments.evaluation import compute_spectral_metrics
-from utils import set_seed, compute_running_average
+from experiments.utils import set_seed, compute_running_average
 from pprint import pprint
 
 
@@ -65,7 +65,7 @@ class CCAExperimentRunner:
         )
 
 
-        self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
+        self.algorithm = instantiate(cfg.algorithm.name)(**cfg.algorithm.kwargs)
         ext_opts, ext_scheds = self.algorithm.configure(self.encoders)
         for opt, sch in zip(ext_opts, ext_scheds):
             self.optimizers.add(opt, sch, managed_by_algorithm=False)

@@ -20,7 +20,7 @@ type: "double"
 
 # Data Generation Parameters
 data:
-  name: "generator.LinearCCADataGenerator"
+  name: "experiments.generator.LinearCCADataGenerator"
   kwargs: 
     d1: 20                 # Dimension of view 1
     d2: 20                 # Dimension of view 2
@@ -34,7 +34,7 @@ data:
 # SCEgrad Hyperparameters
 
 algorithm:
-  name: "csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"
+  name: "csrlearning.algorithms.CSEBilevelStoGrad"
   kwargs:
     state:
       latent_dim: 30
