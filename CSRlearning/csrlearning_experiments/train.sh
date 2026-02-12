@@ -15,8 +15,8 @@
 # module load pytorch-gpu/py3/2.5.0
 
 
-parent_work_dir="../data/.workdir"
-parent_log_dir="../data/outputs/deterministic_9"
+parent_work_dir="../../data/.workdir"
+parent_log_dir="../../data/outputs/deterministic_9"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
@@ -33,8 +33,8 @@ parent_log_dir="../data/outputs/deterministic_9"
 #                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
 
 
-parent_work_dir="../data/.workdir"
-parent_log_dir="../data/outputs/debug"
+parent_work_dir="../../data/.workdir"
+parent_log_dir="../../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
@@ -50,7 +50,6 @@ parent_log_dir="../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 +algorithm=cse_bilevel \
 #                 +algorithm=cse_exact \
 #                 task.init_scale=0.0001 \
 #                 data.kwargs.deterministic=True \
@@ -62,18 +61,23 @@ parent_log_dir="../data/outputs/debug"
 
 
 
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+#                 algorithm="unconstrained_cca"\
+#                 task.init_scale=0.0001\
+#                 data.kwargs.deterministic=True\
+#                 data.kwargs.sign_flip=False\
+#                 +mlxp.logger.parent_log_dir=$parent_log_dir\
+#                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
+
+
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-                +algorithm=cse_bilevel \
-                task.init_scale=0.0001 \
-                data.kwargs.deterministic=True \
-                algorithm.kwargs.reg=0.1 \
-                algorithm.kwargs.lr=.1 \
-                algorithm.kwargs.n_iter=1 \
-                data.kwargs.sign_flip=False \
-                +mlxp.logger.parent_log_dir=$parent_log_dir \
+                algorithm="cse_bilevel"\
+                task.init_scale=0.0001\
+                algorithm.kwargs.lr=0.1\
+                data.kwargs.deterministic=True\
+                data.kwargs.sign_flip=False\
+                +mlxp.logger.parent_log_dir=$parent_log_dir\
                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
-
-
 
 
 

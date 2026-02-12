@@ -11,23 +11,24 @@ from csrlearning import algorithms as algo_mod
 def compute_alignment(M, U, B=None):
     # 4. Compute Alignment: cosine_sim(u_i, M u_i)
     # M: [k,k] matrix
-    # U: [k,d] matrix that are B-orthonormal
+    # U: [k,d] matrix 
     # B: [k,k] PSD matrix defining a metric  
     if B is not None:
         M_ui = M@B@U
         norms_M_ui = torch.sqrt(torch.diag(M_ui.t()@B@M_ui))
         dot_products = torch.sum((B@U)*M_ui, dim=0)
+        norms_U = torch.sqrt(torch.diag(U.t()@B@U))
     else:
         M_ui = M@U
         norms_M_ui = torch.sqrt(torch.diag(M_ui.t()@M_ui))
+        norms_U = torch.sqrt(torch.diag(U.t()@U))
         dot_products = torch.sum(U*M_ui, dim=0)
 
     # Calculate cosine similarity for each pair of columns
     # cos(theta) = (u_i . M_ui)_B / (||u_i||_B * ||M_ui||_B)
-    # Since u_i are B-orthonormal, ||u_i||_B = 1.
     
 
-    return dot_products / (norms_M_ui + 1e-8)
+    return dot_products / ((norms_M_ui + 1e-8)*(norms_U + 1e-8))
 
 
 def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
@@ -54,7 +55,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
         B = target_spectrum_info.cov_1
         U = target_spectrum_info.singular_vectors_1
     else:
-        W = torch.cat([encoders[0].weight, encoders[1].weight], dim=0)
+        W = torch.cat([encoders[0].weight, encoders[1].weight], dim=1)
         B = torch.block_diag(target_spectrum_info.cov_1, target_spectrum_info.cov_2)
         U = torch.cat(
             [target_spectrum_info.singular_vectors_1, target_spectrum_info.singular_vectors_2],

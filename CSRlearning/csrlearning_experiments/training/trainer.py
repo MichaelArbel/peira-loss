@@ -47,15 +47,18 @@ class CCAExperimentRunner:
 
         d1 = cfg.data.kwargs.d1
         d2 = cfg.data.kwargs.d2
-        latent_dim = algo_kwargs.get("latent_dim")
+        latent_dim = cfg.latent_dim
+        if "latent_dim" in cfg.algorithm.kwargs:
+            cfg.algorithm.kwargs.latent_dim = latent_dim 
         self.algorithm = instantiate(cfg.algorithm.name)(**cfg.algorithm.kwargs)
         self.tied_encoders = self.algorithm.tied_encoders
 
-        view1 = nn.Linear(d1, latent_dim, bias=False)
+        view1 = instantiate(cfg.model.name)(d1,latent_dim, **cfg.model.kwargs)
+        #nn.Linear(d1, latent_dim, bias=False)
         if self.tied_encoders:
             view2 = view1
         else:
-            view2 = nn.Linear(d2, latent_dim, bias=False)
+            view2 = instantiate(cfg.model.name)(d2,latent_dim, **cfg.model.kwargs)
 
         self.encoders, self.optimizers = build_optimizer_bundle(
             [view1, view2],
@@ -151,6 +154,9 @@ class CCAExperimentRunner:
             start = time.time()
             loss = self.step()
             end = time.time()
+
+            store_artifacts = np.mod(step, 100) == 0
+
             metrics, artifact_dict = self.tracker.track(
                 loss,
                 self.encoders[0].weight.grad,
@@ -158,10 +164,11 @@ class CCAExperimentRunner:
                 start,
                 end,
                 spectral_metrics=spectral_metrics,
+                with_artifacts = store_artifacts
             )
             self.logger.log_metrics( metrics, log_name="metrics")
 
-            if spectral_metrics is not None and np.mod(step, 100) == 0:
+            if artifact_dict is not None and store_artifacts:
                 self.logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
 
             if np.mod(step, 10) == 0:
@@ -180,15 +187,17 @@ class Tracker:
                      grad, 
                      step,
                      start, end,
-                     spectral_metrics=None):
+                     spectral_metrics=None,
+                     with_artifacts=False):
         self.avg_time = (1 - 1.0 / (step + 1)) * self.avg_time + (1.0 / (step + 1)) * (
                 end - start
             )
         grad_norm, running_grad_norm = self.compute_vector_field_norm(grad)
         
         if spectral_metrics:
-            spectral_metrics, artifact_dict = self.track_spectral_metrics(spectral_metrics)
-            artifact_dict["iter"] =  step
+            spectral_metrics, artifact_dict = self.track_spectral_metrics(spectral_metrics, step,
+                                                                        with_artifacts=with_artifacts)
+            
         else:
             spectral_metrics = {}
             artifact_dict = {}
@@ -205,23 +214,21 @@ class Tracker:
 
         return metrics, artifact_dict
 
-    def track_spectral_metrics(self,metrics):
-        s1, s2 = metrics.spectrum[0], metrics.spectrum[1]
-        ts1, ts2 = metrics.target_spectrum[0], metrics.target_spectrum[1]
-        align1, align2 = metrics.alignment[0], metrics.alignment[1]
-
-        spectral_metrics = {"singval_1": s1.item(),
-                            "singval_2": s2.item(),
-                            "t_singval_1": ts1.item(),
-                            "t_singval_2": ts2.item(),
-                            "align_1": align1.item(),
-                            "align_2": align2.item(),
+    def track_spectral_metrics(self,metrics, step, with_artifacts=False):
+        spectral_metrics = {"singval": [metrics.spectrum[0].item(), metrics.spectrum[1].item()],
+                            "target_singval": [metrics.target_spectrum[0].item(), metrics.target_spectrum[1].item()],
+                            "align": [metrics.alignment[0].item(), metrics.alignment[1].item()],
+                            "local_align": [metrics.local_alignment[0].item(), metrics.local_alignment[1].item()],
                             }
-        artifact_dict = {
-                        "alignment": metrics.alignment.cpu().numpy(),
-                        "spectrum": metrics.spectrum.cpu().numpy(),
-                        }
-        return spectral_metrics, artifact_dict
+        if with_artifacts:
+            artifact_dict = {
+                            "alignment": metrics.alignment.cpu().numpy(),
+                            "spectrum": metrics.spectrum.cpu().numpy(),
+                            "local_aligment": metrics.local_alignment.cpu().numpy(),
+                            "iter" : step
+                            }
+            return spectral_metrics, artifact_dict
+        return spectral_metrics, None
 
     def  compute_vector_field_norm(self, grad):
 

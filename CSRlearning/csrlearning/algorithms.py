@@ -25,7 +25,7 @@ class AlgorithmState:
 
 
 class BaseAlgorithm(nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
         self.stop_grad = False
         self.tied_encoders = False
@@ -58,8 +58,8 @@ class UnconstrainedCCAAlgorithm(BaseAlgorithm):
         return eckhart_young_loss(X, Y)
 
 class CSEAlgorithm(BaseAlgorithm):
-    def __init__(self, reg):
-        super().__init__()
+    def __init__(self, reg, **kwargs):
+        super().__init__(**kwargs)
         self.reg = reg
 
     def forward(self, X, Y, state):
@@ -67,8 +67,8 @@ class CSEAlgorithm(BaseAlgorithm):
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
 
 class SSLAlgorithm(BaseAlgorithm):
-    def __init__(self, reg):
-        super().__init__()
+    def __init__(self, reg, **kwargs):
+        super().__init__(**kwargs)
         self.stop_grad = True
         self.tied_encoders = True
         self.reg = reg
@@ -105,9 +105,9 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         optimizer_ctor,
         scheduler_ctor,
         symmetric,
-        with_adjoint,
+        with_adjoint, **kwargs
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         self.n_iter = n_iter
         self.reg = reg
         self.regressor = regressor_cl(
@@ -139,7 +139,14 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
 
 
 class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
-    def __init__(self, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+    def __init__(self, 
+                 latent_dim, 
+                 reg, 
+                 symmetric, 
+                 with_adjoint, 
+                 lr=0.01, 
+                 T_max=20000,
+                 **kwargs):
         n_iter = 1
         from .linear_regressor import IterativeDiffRegressor
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=lr)
@@ -151,7 +158,8 @@ class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
                          optimizer_ctor, 
                          scheduler_ctor,
                          symmetric=symmetric,
-                         with_adjoint=with_adjoint
+                         with_adjoint=with_adjoint,
+                         **kwargs
                          )
 
     def inner_steps(self) -> int:
@@ -169,7 +177,14 @@ class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
 
 
 class StoCompGrad(StochasticCompositionalGradientAlgorithm):
-    def __init__(self, n_iter, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+    def __init__(self, 
+                 n_iter, 
+                 latent_dim, 
+                 reg, symmetric, 
+                 with_adjoint, 
+                 lr=0.01, 
+                 T_max=20000,
+                 **kwargs):
         from .linear_regressor import MomentumRegressor
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=lr)
         scheduler_ctor = lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max)
@@ -180,13 +195,22 @@ class StoCompGrad(StochasticCompositionalGradientAlgorithm):
                          optimizer_ctor, 
                          scheduler_ctor,
                          symmetric=symmetric,
-                         with_adjoint=with_adjoint
+                         with_adjoint=with_adjoint,
+                         **kwargs
                          )
 
 
 
 class BilevelStoGrad(StochasticCompositionalGradientAlgorithm):
-    def __init__(self, n_iter, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+    def __init__(self, 
+                n_iter, 
+                latent_dim, 
+                reg, 
+                symmetric, 
+                with_adjoint, 
+                lr=0.01, 
+                T_max=20000,
+                **kwargs):
 
         from .linear_regressor import IterativeDiffRegressor
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=lr)
@@ -198,71 +222,141 @@ class BilevelStoGrad(StochasticCompositionalGradientAlgorithm):
                          optimizer_ctor, 
                          scheduler_ctor,
                          symmetric=symmetric,
-                         with_adjoint=with_adjoint
+                         with_adjoint=with_adjoint,
+                         **kwargs
                          )
 
 
 
 
 class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
-    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
-        super().__init__( n_iter= n_iter, 
-                        latent_dim=latent_dim, 
-                        reg=reg, 
-                        symmetric = True, 
-                        with_adjoint = True, 
-                        lr=lr, 
-                        T_max=T_max)
+    def __init__(self, 
+                 n_iter, 
+                 latent_dim, 
+                 reg, 
+                 lr=0.01, 
+                 T_max=20000,
+                 **kwargs):
+        super().__init__(
+            n_iter=n_iter,
+            latent_dim=latent_dim,
+            reg=reg,
+            symmetric=True,
+            with_adjoint=True,
+            lr=lr,
+            T_max=T_max,
+            **kwargs
+            )
 
-
-class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
-    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
-        super().__init__( n_iter= n_iter, 
-                        latent_dim=latent_dim, 
-                        reg=reg, 
-                        symmetric = False, 
-                        with_adjoint = False, 
-                        lr=lr, 
-                        T_max=T_max)
 
 
 
 class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
-    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
-        super().__init__( n_iter= n_iter, 
+    def __init__(self, 
+                n_iter, 
+                latent_dim, 
+                reg, 
+                lr=0.01, 
+                T_max=20000,
+                **kwargs):
+        super().__init__( 
+                        n_iter= n_iter, 
                         latent_dim=latent_dim, 
                         reg=reg, 
                         symmetric = True, 
                         with_adjoint = True, 
                         lr=lr, 
-                        T_max=T_max)
+                        T_max=T_max,
+                        **kwargs)
+
+
+class CSEBilevelStoGradJoint(CSEAlgorithm,BilevelStoGradJoint):
+    def __init__(self, 
+                 latent_dim, 
+                 reg, 
+                 lr=0.01, 
+                 T_max=20000,
+                 **kwargs):
+        super().__init__(
+                latent_dim=latent_dim,
+                reg= reg, 
+                symmetric= True, 
+                with_adjoint= True, 
+                lr=lr, 
+                T_max=T_max,
+                **kwargs)
+
+    def forward(self, X, Y, state):
+        pred = self.regressor.pred
+        adjoint = self.regressor.adjoint
+        X_det, Y_det = X.detach(), Y.detach()
+
+        pred_loss = self.regressor.pred_loss(X_det, Y_det, pred, self.reg)
+        adjoint_loss = self.regressor.adjoint_loss(X_det, Y_det, adjoint, self.reg)
+        loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
+        return pred_loss + adjoint_loss + loss_aux
+
+
+class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
+    def __init__(self, 
+                n_iter, 
+                latent_dim, 
+                reg, 
+                lr=0.01, 
+                T_max=20000,
+                **kwargs):
+        super().__init__(
+            n_iter=n_iter,
+            latent_dim=latent_dim,
+            reg=reg,
+            symmetric=False,
+            with_adjoint=False,
+            lr=lr,
+            T_max=T_max,
+            **kwargs
+        )
 
 
 
 class SSLBilevelStoSemiGrad(SSLAlgorithm, BilevelStoGrad):
-    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
-        super().__init__( n_iter= n_iter, 
+    def __init__(self, 
+                n_iter, 
+                latent_dim, 
+                reg, 
+                lr=0.01, 
+                T_max=20000,
+                **kwargs):
+        super().__init__( 
+                        self,
+                        n_iter= n_iter, 
                         latent_dim=latent_dim, 
                         reg=reg, 
                         symmetric = False, 
                         with_adjoint = False, 
                         lr=lr, 
-                        T_max=T_max)
+                        T_max=T_max,
+                        **kwargs)
 
 
 
 
 
 
-class SSLStoSemiGradJoint(BilevelStoGradJoint,SSLAlgorithm):
-    def __init__(self, latent_dim, reg, lr=0.01, T_max=20000):
+class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
+    def __init__(self, 
+                latent_dim, 
+                reg, 
+                lr=0.01, 
+                T_max=20000,
+                **kwargs):
         super().__init__(
                         latent_dim=latent_dim,
                         reg= reg, 
                         symmetric= False, 
                         with_adjoint= False, 
                         lr=lr, 
-                        T_max=T_max)
+                        T_max=T_max,
+                        **kwargs)
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
@@ -275,23 +369,5 @@ class SSLStoSemiGradJoint(BilevelStoGradJoint,SSLAlgorithm):
         return loss
     
 
-class CSEBilevelStoGradJoint(BilevelStoGradJoint,CSEAlgorithm):
-    def __init__(self, latent_dim, reg, lr=0.01, T_max=20000):
-                super().__init__(
-                        latent_dim=latent_dim,
-                        reg= reg, 
-                        symmetric= True, 
-                        with_adjoint= True, 
-                        lr=lr, 
-                        T_max=T_max)
 
-    def forward(self, X, Y, state):
-        pred = self.regressor.pred
-        adjoint = self.regressor.adjoint
-        X_det, Y_det = X.detach(), Y.detach()
-
-        pred_loss = self.regressor.pred_loss(X_det, Y_det, pred, self.reg)
-        adjoint_loss = self.regressor.adjoint_loss(X_det, Y_det, adjoint, self.reg)
-        loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
-        return pred_loss + adjoint_loss + loss_aux
 

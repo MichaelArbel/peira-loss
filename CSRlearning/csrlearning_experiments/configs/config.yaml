@@ -36,9 +36,19 @@ data:
 
 # SCEgrad Hyperparameters
 
+latent_dim: 30
+
+model:
+  name: "torch.nn.Linear"
+  kwargs:
+    bias: False
+
+
+
+
 optimizer:
   name: "torch.optim.SGD"
-  kwargs: { lr: 1.0 }
+  kwargs: { lr: .01 }
 
 scheduler:
   name: "torch.optim.lr_scheduler.CosineAnnealingLR"
