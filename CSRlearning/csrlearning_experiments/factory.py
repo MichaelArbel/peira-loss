@@ -19,7 +19,7 @@ def instantiate(module_name):
 
 
 def build_optimizer_bundle(encoders, tied_encoders, optimizer_spec, scheduler_spec):
-    from experiments.training.optimizer_bundle import OptimizerBundle
+    from csrlearning_experiments.training.optimizer_bundle import OptimizerBundle
 
     first_encoder = encoders[0]
     if tied_encoders:

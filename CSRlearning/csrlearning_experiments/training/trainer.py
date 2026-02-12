@@ -5,11 +5,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from experiments.evaluation.evaluation import compute_alignment
-from experiments.factory import instantiate, build_optimizer_bundle
-from experiments.training.pipeline import encode
-from experiments.evaluation.evaluation import compute_spectral_metrics
-from experiments.utils.utils import set_seed, compute_running_average
+from csrlearning_experiments.evaluation.evaluation import compute_alignment
+from csrlearning_experiments.factory import instantiate, build_optimizer_bundle
+from csrlearning_experiments.training.pipeline import encode
+from csrlearning_experiments.evaluation.evaluation import compute_spectral_metrics
+from csrlearning_experiments.utils.utils import set_seed, compute_running_average
 from pprint import pprint
 
 

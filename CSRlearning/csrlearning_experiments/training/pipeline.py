@@ -1,6 +1,6 @@
 import torch
 
-from experiments.exp_types import EncodedBatch
+from csrlearning_experiments.exp_types import EncodedBatch
 
 
 def encode(data, encoders, stop_grad=False):

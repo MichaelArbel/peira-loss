@@ -3,9 +3,9 @@ from types import SimpleNamespace
 import torch
 
 from csrlearning.algorithms import UnconstrainedCCAAlgorithm
-from experiments.factory import build_optimizer_bundle
-from experiments.data.generator import LinearCCADataGenerator
-from experiments.training.pipeline import encode
+from csrlearning_experiments.factory import build_optimizer_bundle
+from csrlearning_experiments.data.generator import LinearCCADataGenerator
+from csrlearning_experiments.training.pipeline import encode
 
 
 def main():

@@ -1,0 +1,14 @@
+[project]
+name = "csrlearning"
+version = "0.1.0"
+description = "Core algorithms for CCA without orthogonality"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["torch"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["csrlearning*"]

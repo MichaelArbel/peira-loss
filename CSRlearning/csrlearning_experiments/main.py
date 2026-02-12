@@ -4,8 +4,8 @@ import mlxp
 # 4. Entry Point
 @mlxp.launch(config_path='./configs')
 def main(ctx: mlxp.Context):
-    from experiments.training.trainer import CCAExperimentRunner
-    from experiments.utils.utils import set_seed
+    from csrlearning_experiments.training.trainer import CCAExperimentRunner
+    from csrlearning_experiments.utils.utils import set_seed
 
     set_seed(ctx.config.seed)
     # The 'ctx' object contains the config and the logger
