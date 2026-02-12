@@ -48,7 +48,8 @@ class CCAExperimentRunner:
         d1 = cfg.data.kwargs.d1
         d2 = cfg.data.kwargs.d2
         latent_dim = algo_kwargs.get("latent_dim")
-        self.tied_encoders = bool(algo_kwargs.get("tied_encoders", False))
+        self.algorithm = instantiate(cfg.algorithm.name)(**cfg.algorithm.kwargs)
+        self.tied_encoders = self.algorithm.tied_encoders
 
         view1 = nn.Linear(d1, latent_dim, bias=False)
         if self.tied_encoders:
@@ -64,7 +65,6 @@ class CCAExperimentRunner:
         )
 
 
-        self.algorithm = instantiate(cfg.algorithm.name)(**cfg.algorithm.kwargs)
         ext_opts, ext_scheds = self.algorithm.configure(self.encoders)
         for opt, sch in zip(ext_opts, ext_scheds):
             self.optimizers.add(opt, sch, managed_by_algorithm=False)

@@ -28,6 +28,7 @@ class BaseAlgorithm(nn.Module):
     def __init__(self):
         super().__init__()
         self.stop_grad = False
+        self.tied_encoders = False
 
     def configure(self, encoders):
         return [], []
@@ -69,6 +70,7 @@ class SSLAlgorithm(BaseAlgorithm):
     def __init__(self, reg):
         super().__init__()
         self.stop_grad = True
+        self.tied_encoders = True
         self.reg = reg
 
     def configure(self, encoders):
