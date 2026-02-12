@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import torch
 
-from experiments.evaluation import compute_alignment
+from experiments.evaluation import compute_alignment, compute_algorithm_spectrum
 from experiments.generator import LinearCCADataGenerator
 from factory import instantiate
 
@@ -43,6 +43,16 @@ def compute_alignment_summary(model, data_gen):
     alignment = compute_alignment(W, data_gen.info["P"])
     return alignment
 
+
+def compute_cov_spectrum(model, data_gen):
+    batch_x, batch_y = next(data_gen)
+    u = model.encoder_u(batch_x)
+    v = model.encoder_v(batch_y)
+    bsz = u.shape[0]
+    cov_u = (u.t() @ u) / bsz
+    cov_v = (v.t() @ v) / bsz
+    intra_cov = cov_u + cov_v
+    return torch.linalg.svdvals(intra_cov)
 
 def run_algorithm_test(
     cfg: AlgorithmTestConfig,
@@ -128,7 +138,10 @@ def run_algorithm_test(
         last_metrics = metrics
 
         if (step % print_interval) == 0 or step == iterations - 1:
-            spectrum, target_spectrum = algorithm.compute_spectrum(model, data_gen)
+            cov_spectrum = compute_cov_spectrum(model, data_gen)
+            spectrum, target_spectrum = compute_algorithm_spectrum(
+                algorithm, cov_spectrum, data_gen.info
+            )
             alignment = compute_alignment_summary(model, data_gen)
             s1, s2 = spectrum[0].item(), spectrum[1].item()
             ts1, ts2 = target_spectrum[0].item(), target_spectrum[1].item()
@@ -148,7 +161,10 @@ def run_algorithm_test(
         if not all(math.isfinite(v) for v in metrics.values()):
             raise AssertionError(f"Non-finite metric encountered for {cfg.algorithm_name}")
 
-    spectrum, target_spectrum = algorithm.compute_spectrum(model, data_gen)
+    cov_spectrum = compute_cov_spectrum(model, data_gen)
+    spectrum, target_spectrum = compute_algorithm_spectrum(
+        algorithm, cov_spectrum, data_gen.info
+    )
     alignment = compute_alignment_summary(model, data_gen)
 
     alignment_error = float(torch.mean(1.0 - alignment).item())

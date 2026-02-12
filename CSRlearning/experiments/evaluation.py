@@ -1,7 +1,12 @@
 import torch
-from csrlearning.linalg_utils import exact_inverse, add_ridge, solve_with_cholesky
 from csrlearning.core_types import SpectralMetrics
 from csrlearning.pipeline import compute_covariance, encode
+from csrlearning.spectra import (
+    compute_cse_spectrum,
+    compute_semigrad_spectrum,
+    compute_unconstrained_cca_spectrum,
+)
+from csrlearning import algorithms as algo_mod
 
 def compute_alignment(M, U, B=None):
     # 4. Compute Alignment: cosine_sim(u_i, M u_i)
@@ -40,7 +45,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
 
     R, S, _ = torch.linalg.svd(intra_cov)
     target_spectrum_info = data_source.info
-    spectrum, target_spectrum = algorithm.compute_spectrum(S, target_spectrum_info)
+    spectrum, target_spectrum = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
 
     local_alignment = compute_alignment(inter_cov, R)
 
@@ -68,3 +73,18 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
         local_alignment=local_alignment,
         alignment=alignment,
     )
+
+
+def compute_algorithm_spectrum(algorithm, cov_spectrum, target_spectrum_info):
+    if isinstance(algorithm, algo_mod.UnconstrainedCCAAlgorithm):
+        target_spectrum = target_spectrum_info.spectrum
+        return compute_unconstrained_cca_spectrum(cov_spectrum, target_spectrum)
+
+    if isinstance(algorithm, algo_mod.CSEAlgorithm):
+        target_spectrum = target_spectrum_info.spectrum
+        return compute_cse_spectrum(cov_spectrum, target_spectrum, algorithm.reg)
+
+    if isinstance(algorithm, algo_mod.SSLAlgorithm):
+        return compute_semigrad_spectrum(cov_spectrum, target_spectrum_info, algorithm.reg)
+
+    raise ValueError(f"Unsupported algorithm type for spectrum: {type(algorithm).__name__}")

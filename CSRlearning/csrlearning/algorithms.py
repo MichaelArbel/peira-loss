@@ -8,11 +8,6 @@ from .objectives import (
     l2_penalty,
     linear_probe_loss,
 )
-from .spectra import (
-    compute_cse_spectrum,
-    compute_semigrad_spectrum,
-    compute_unconstrained_cca_spectrum,
-)
 from .linear_regressor import get_regressor_spec, build_regressor
 from .pipeline import encode
 from .core_types import AlgorithmState, DataSource
@@ -25,9 +20,6 @@ class BaseAlgorithm(nn.Module):
     def configure(self, encoders, optimizers):
         pass
 
-    def compute_spectrum(self):
-        raise NotImplementedError
-
     def compute_loss(self, X, Y, state):
         raise NotImplementedError
 
@@ -39,10 +31,6 @@ class BaseAlgorithm(nn.Module):
 
 class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
-    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
-        target_spectrum = target_spectrum_info.spectrum
-        return compute_unconstrained_cca_spectrum(cov_spectrum, target_spectrum)
-
     def compute_loss(self, X, Y, state):
         return eckhart_young_loss(X, Y)
 
@@ -50,17 +38,12 @@ class CSEAlgorithm(BaseAlgorithm):
     def __init__(self, reg):
         super().__init__()
         self.reg = reg
-    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
-        target_spectrum = target_spectrum_info.spectrum
-        return compute_cse_spectrum(cov_spectrum,target_spectrum , self.reg)
 
 class SSLAlgorithm(BaseAlgorithm):
     def __init__(self, reg):
         super().__init__()
         self.stop_grad = True
         self.reg = reg
-    def compute_spectrum(self, cov_spectrum, target_spectrum_info):
-        return compute_semigrad_spectrum(cov_spectrum, target_spectrum_info, self.reg)
 
 
 
