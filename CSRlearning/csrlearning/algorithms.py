@@ -273,10 +273,15 @@ class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
 class CSEBilevelStoGradJoint(CSEAlgorithm,BilevelStoGradJoint):
     def __init__(self, 
                  latent_dim, 
-                 reg, 
+                 reg,
+                 ema=1., 
                  lr=0.01, 
                  T_max=20000,
                  **kwargs):
+        self.ema = ema
+        if ema <1.:
+            self.ema_pred = None
+            self.ema_adjoint = None
         super().__init__(
                 latent_dim=latent_dim,
                 reg= reg, 
@@ -289,11 +294,21 @@ class CSEBilevelStoGradJoint(CSEAlgorithm,BilevelStoGradJoint):
     def forward(self, X, Y, state):
         pred = self.regressor.pred
         adjoint = self.regressor.adjoint
+        if self.ema<1.:
+            if self.ema_pred is None:
+                self.ema_pred, self.ema_adjoint = pred.detach(), adjoint.detach()
+            else:
+                self.ema_pred = (1-self.ema)*self.ema_pred + self.ema*pred.detach()
+                self.ema_adjoint = (1-self.ema)*self.ema_adjoint + self.ema*adjoint.detach()
+            loss_aux = cse_auxiliary_loss(X, Y, self.ema_pred, self.ema_adjoint, self.reg)
+        else:
+            loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
+        
         X_det, Y_det = X.detach(), Y.detach()
-
         pred_loss = self.regressor.pred_loss(X_det, Y_det, pred, self.reg)
         adjoint_loss = self.regressor.adjoint_loss(X_det, Y_det, adjoint, self.reg)
-        loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
+
+        
         return pred_loss + adjoint_loss + loss_aux
 
 

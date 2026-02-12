@@ -4,3 +4,4 @@ kwargs:
   reg: 0.1
   lr: 0.1
   T_max: 20000
+  ema: 1.

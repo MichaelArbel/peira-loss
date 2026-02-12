@@ -143,7 +143,7 @@ class CCAExperimentRunner:
                 for k, v in self.loader.info.items()
             }
             self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
-        for step in range(self.cfg.steps_per_epoch):
+        for step in range(self.cfg.total_steps):
             with torch.no_grad():
                 spectral_metrics = compute_spectral_metrics(
                     self.encoders,

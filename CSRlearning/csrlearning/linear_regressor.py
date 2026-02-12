@@ -29,7 +29,7 @@ class IterativeDiffRegressor(nn.Module):
         self.optimizer = optimizer_ctor([self.pred, self.adjoint])
         self.scheduler = scheduler_ctor(self.optimizer)
         self.symmetric = symmetric
-        self.with_inverse = with_adjoint
+        self.with_adjoint = with_adjoint
 
     def forward(self, X_det: torch.Tensor, Y_det: torch.Tensor):
         """
@@ -70,8 +70,10 @@ class MomentumRegressor(nn.Module):
         self.reg = reg
         self.optimizer = optimizer_ctor([self.intra_cov, self.inter_cov])
         self.scheduler = scheduler_ctor(self.optimizer)
+        if isinstance(self.optimizer,torch.optim.AdamW):
+            self.reg = 0.
         self.symmetric = symmetric
-        self.with_inverse = with_adjoint
+        self.with_adjoint = with_adjoint
     def forward(self, X_det: torch.Tensor, Y_det: torch.Tensor):
         """
         Perform `steps` optimizer steps using detached features.

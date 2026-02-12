@@ -11,7 +11,7 @@ seed: 0
 task: 
   name: "vectorfield"
   epochs: 50
-  steps_per_epoch: 20000    # Number of alternating updates per epoch
+  total_steps: 20000    # Number of alternating updates per epoch
   init_seed: 0
   init_scale: 0.0001
   init_mode: "near_zero"
@@ -47,9 +47,13 @@ model:
 
 
 optimizer:
-  name: "torch.optim.SGD"
-  kwargs: { lr: .01 }
+  name: "torch.optim.AdamW"
+  kwargs: 
+    lr: .01
+    weight_decay: 0.
 
 scheduler:
   name: "torch.optim.lr_scheduler.CosineAnnealingLR"
-  kwargs: { T_max: 20000, eta_min: 0.000001 }
+  kwargs:
+    T_max: ${task.total_steps}
+    eta_min: 0.000001
