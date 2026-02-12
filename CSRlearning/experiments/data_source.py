@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 
 from experiments.exp_types import DataInfo
-from csrlearning.core_types import DataSource
+from experiments.core_types import DataSource
 
 
 class DatasetDataSource:

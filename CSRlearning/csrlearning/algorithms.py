@@ -8,7 +8,21 @@ from .objectives import (
     l2_penalty,
     linear_probe_loss,
 )
-from .core_types import AlgorithmState
+
+from typing import Any, Dict
+
+from dataclasses import dataclass, field
+
+@dataclass(frozen=False)
+class AlgorithmState:
+    pred: Any = None
+    adjoint: Any = None
+    extras: Dict[str, Any] = field(default_factory=dict)
+    stop_grad: bool = False
+
+
+
+
 
 class BaseAlgorithm(nn.Module):
     def __init__(self):

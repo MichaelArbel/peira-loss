@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import torch
 
 from csrlearning.algorithms import UnconstrainedCCAAlgorithm
-from factory import build_optimizer_bundle
+from experiments.factory import build_optimizer_bundle
 from experiments.generator import LinearCCADataGenerator
 from experiments.pipeline import encode
 

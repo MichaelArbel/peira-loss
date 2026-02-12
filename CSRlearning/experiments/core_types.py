@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+
 from typing import Any, Dict, Optional, Protocol, Tuple
 
 import torch
 
 
-@dataclass(frozen=False)
-class AlgorithmState:
-    pred: Any = None
-    adjoint: Any = None
-    extras: Dict[str, Any] = field(default_factory=dict)
-    stop_grad: bool = False
+
 
 
 class DataSource(Protocol):
