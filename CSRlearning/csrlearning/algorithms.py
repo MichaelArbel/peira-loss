@@ -8,7 +8,6 @@ from .objectives import (
     l2_penalty,
     linear_probe_loss,
 )
-from .linear_regressor import get_regressor_spec, build_regressor
 from .core_types import AlgorithmState, DataSource
 
 class BaseAlgorithm(nn.Module):
@@ -91,9 +90,9 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         self.regressor = regressor_cl(
             pred_init=torch.zeros(latent_dim,latent_dim),
             adjoint_init=torch.zeros(latent_dim,latent_dim),
+            reg=self.reg,
             optimizer_ctor=optimizer_ctor,
             scheduler_ctor=scheduler_ctor,
-            reg=self.reg,
             symmetric=symmetric,
             with_adjoint=with_adjoint
         )

@@ -13,9 +13,9 @@ class IterativeDiffRegressor(nn.Module):
         self,
         pred_init: torch.Tensor,
         adjoint_init: torch.Tensor,
+        reg: float,
         optimizer_ctor = lambda param: torch.optim.SGD(param, lr=0.01),
         scheduler_ctor = lambda optimizer: None, 
-        reg: float,
         symmetric=True,
         with_adjoint=False
     ):
@@ -58,8 +58,6 @@ class MomentumRegressor(nn.Module):
         pred_init: torch.Tensor,
         adjoint_init: torch.Tensor,
         reg: float,
-        optimizer: dict,
-        scheduler: dict,
         optimizer_ctor = lambda param: torch.optim.SGD(param, lr=0.01),
         scheduler_ctor = lambda optimizer: None, 
         symmetric: bool=True,
@@ -97,79 +95,3 @@ class MomentumRegressor(nn.Module):
         else:
             self.pred = solve_with_cholesky(inter_cov, add_ridge(self.intra_cov, self.reg))
             return self.pred.detach()
-
-
-
-def get_regressor_spec(regressor, lr, T_max, symmetric, with_adjoint):
-    regressor_spec = {
-        "name": regressor,
-        "kwargs": {
-            "symmetric": symmetric,
-            "with_adjoint": with_adjoint,
-        },
-        "optimizer": {"name": "torch.optim.SGD", "kwargs": {"lr": lr}},
-        "scheduler": {
-            "name": "torch.optim.lr_scheduler.CosineAnnealingLR",
-            "kwargs": {"T_max": T_max},
-        },
-    }
-    return regressor_spec
-    
-
-def load_class(path: str):
-    module_name, class_name = path.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, class_name)
-
-
-
-def build_regressor(spec, latent_dim, reg):
-    regressor = spec.get("name", None)
-    if regressor:
-        regressor_cls = load_class(regressor)
-    else:
-        return None
-    
-    k = latent_dim
-    pred_init = torch.zeros(k, k)
-    adjoint_init = torch.zeros(k, k)
-    kwargs = spec.get("kwargs", {})
-    optimizer_spec = spec.get("optimizer", {})
-    scheduler_spec = spec.get("scheduler", {})
-
-    if "name" not in optimizer_spec:
-        raise ValueError("regressor spec is missing optimizer.name")
-
-    optimizer_cls = load_class(optimizer_spec.get("name"))
-    optimizer_ctor = lambda param: optimizer_cls(param, **optimizer_spec.get("kwargs", {}))
-
-    if scheduler_spec:
-        scheduler_cls = load_class(scheduler_spec.get("name"))
-        scheduler_ctor = lambda optimizer: scheduler_cls(optimizer, **scheduler_spec.get("kwargs", {}))
-    else:
-        scheduler_ctor = lambda optimizer: None
-
-    return regressor_cls(
-        pred_init,
-        adjoint_init,
-        optimizer_ctor=optimizer_ctor,
-        scheduler_ctor=scheduler_ctor,
-        reg=reg,
-        symmetric=kwargs.get("symmetric", True),
-        with_adjoint=kwargs.get("with_adjoint", False),
-    )
-
-
-
-def make_default_regressor(regressor_cls, latent_dim, lr, T_max, reg, symmetric, with_adjoint):
-    def factory(reg):
-        return regressor_cls(
-            pred_init=torch.zeros(latent_dim, latent_dim),
-            adjoint_init=torch.zeros(latent_dim, latent_dim),
-            optimizer_ctor=lambda params: torch.optim.SGD(params, lr=lr),
-            scheduler_ctor=lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max),
-            reg=reg,
-            symmetric=symmetric,
-            with_adjoint=with_adjoint,
-        )
-    return factory
