@@ -13,6 +13,22 @@ from utils import set_seed, compute_running_average
 from pprint import pprint
 
 
+class InfiniteLoader:
+    def __init__(self, loader):
+        self.loader = loader
+        self.iterator = iter(loader)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.iterator)
+        except StopIteration:
+            self.iterator = iter(self.loader)
+            return next(self.iterator)
+
+
 class CCAExperimentRunner:
     def __init__(self, cfg, logger):
         self.logger = logger
@@ -23,6 +39,7 @@ class CCAExperimentRunner:
         self.loader = instantiate(cfg.data.name)(
             device=self.device, dtype=self.dtype, **cfg.data.kwargs
         )
+        self.infinite_loader = InfiniteLoader(self.loader)
  
 
         algorithm_cfg = cfg.algorithm
@@ -86,14 +103,17 @@ class CCAExperimentRunner:
 
     def  step(self):
 
-            state = self.algorithm.update_internal_state(self.loader, self.encoders)
+            state = None
+            for _ in range(self.algorithm.inner_steps()):
+                update_batch = next(self.infinite_loader)
+                update_encoded = encode(update_batch, self.encoders, self.algorithm.stop_grad)
+                state = self.algorithm.update_internal_state(update_encoded.x1, update_encoded.x2)
             self.optimizers.zero_grad()
             
-            data = next(self.loader)
+            data = next(self.infinite_loader)
             output = encode(data, self.encoders, state.stop_grad)
             loss = self.algorithm(output.x1, output.x2, state)
             loss.backward()
-
 
             self.optimizers.step()
             return loss

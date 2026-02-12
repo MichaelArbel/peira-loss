@@ -19,10 +19,13 @@ class BaseAlgorithm(nn.Module):
     def configure(self, encoders):
         return [], []
 
+    def inner_steps(self) -> int:
+        return 0
+
     def forward(self, X, Y, state):
         raise NotImplementedError
 
-    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+    def update_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(
             extras={"consumed_batches": 0},
             stop_grad=self.stop_grad,
@@ -74,14 +77,13 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
                                         self.reg)
         self.encoders = None
 
-    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
-        state = super().update_internal_state(data_gen, encoders)
-        for _ in range(self.n_iter):
-            with torch.no_grad():
-                data = next(data_gen)
-                outputs = tuple([encoders[i](data[i]) for i in range(len(data))])
-            self.pred = self.regressor(outputs[0].detach(), outputs[1].detach())
-        consumed = self.n_iter
+    def inner_steps(self) -> int:
+        return self.n_iter
+
+    def update_internal_state(self, X,Y) -> AlgorithmState:
+        state = super().update_internal_state(X,Y)
+        self.pred = self.regressor(X.detach(), Y.detach())
+        consumed = 1
         state.extras["consumed_batches"] = consumed
 
         if isinstance(self.pred, tuple) and len(self.pred) == 2:
@@ -148,11 +150,13 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
                          n_iter= 1, 
                          regressor_spec= regressor_spec)
 
+    def inner_steps(self) -> int:
+        return 0
 
     def configure(self, encoders):
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
-    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+    def update_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def forward(self, X, Y, state):
@@ -219,13 +223,14 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
                  reg=reg, 
                  n_iter= 1, 
                  regressor_spec= regressor_spec)
-
+    def inner_steps(self) -> int:
+        return 0
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
-    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+    def update_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def forward(self, X, Y, state):
