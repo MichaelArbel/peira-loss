@@ -106,7 +106,8 @@ class CCAExperimentRunner:
             state = None
             for _ in range(self.algorithm.inner_steps()):
                 update_batch = next(self.infinite_loader)
-                update_encoded = encode(update_batch, self.encoders, self.algorithm.stop_grad)
+                with torch.no_grad():
+                    update_encoded = encode(update_batch, self.encoders, self.algorithm.stop_grad)
                 state = self.algorithm.update_internal_state(update_encoded.x1, update_encoded.x2)
             self.optimizers.zero_grad()
             
