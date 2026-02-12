@@ -1,6 +1,6 @@
 import torch
-from csrlearning.core_types import SpectralMetrics
-from csrlearning.pipeline import compute_covariance, encode
+from experiments.exp_types import SpectralMetrics
+from experiments.pipeline import compute_covariance, encode
 from csrlearning.spectra import (
     compute_cse_spectrum,
     compute_semigrad_spectrum,

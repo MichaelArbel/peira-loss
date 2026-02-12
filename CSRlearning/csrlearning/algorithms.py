@@ -9,7 +9,6 @@ from .objectives import (
     linear_probe_loss,
 )
 from .linear_regressor import get_regressor_spec, build_regressor
-from .pipeline import encode
 from .core_types import AlgorithmState, DataSource
 
 class BaseAlgorithm(nn.Module):
@@ -82,8 +81,8 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         for _ in range(self.n_iter):
             with torch.no_grad():
                 data = next(data_gen)
-                outputs = encode(data, encoders)
-            self.pred = self.regressor(outputs.x1.detach(), outputs.x2.detach())
+                outputs = tuple([encoders[i](data[i]) for i in range(len(data))])
+            self.pred = self.regressor(outputs[0].detach(), outputs[1].detach())
         consumed = self.n_iter
         state.extras["consumed_batches"] = consumed
 

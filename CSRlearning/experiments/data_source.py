@@ -2,7 +2,8 @@ from typing import Optional, Tuple
 
 import torch
 
-from csrlearning.core_types import DataInfo, DataSource
+from experiments.exp_types import DataInfo
+from csrlearning.core_types import DataSource
 
 
 class DatasetDataSource:

@@ -7,7 +7,7 @@ import torch.nn as nn
 
 from experiments.evaluation import compute_alignment
 from factory import instantiate, build_optimizer_bundle
-from csrlearning.pipeline import encode
+from experiments.pipeline import encode
 from experiments.evaluation import compute_spectral_metrics
 from utils import set_seed, compute_running_average
 from pprint import pprint

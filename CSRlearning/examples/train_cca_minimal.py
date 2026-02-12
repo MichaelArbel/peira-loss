@@ -5,7 +5,7 @@ import torch
 from csrlearning.algorithms import UnconstrainedCCAAlgorithm
 from factory import build_optimizer_bundle
 from experiments.generator import LinearCCADataGenerator
-from csrlearning.pipeline import encode
+from experiments.pipeline import encode
 
 
 def main():
