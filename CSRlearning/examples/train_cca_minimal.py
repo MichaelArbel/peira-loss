@@ -49,7 +49,7 @@ def main():
     steps = 1000
     data_iter = iter(data_source)
     for step in range(steps):
-        state = None
+        state = algorithm.get_internal_state()
         for _ in range(algorithm.inner_steps()):
             update_batch = next(data_iter)
             update_encoded = encode(update_batch, encoders, algorithm.stop_grad)

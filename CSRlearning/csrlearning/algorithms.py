@@ -43,7 +43,11 @@ class BaseAlgorithm(nn.Module):
             extras={"consumed_batches": 0},
             stop_grad=self.stop_grad,
         )
-
+    def get_internal_state(self):
+        return AlgorithmState(
+            extras={"consumed_batches": 0},
+            stop_grad=self.stop_grad,
+        )
 
 
 

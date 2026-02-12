@@ -33,26 +33,21 @@ data:
 
 # SCEgrad Hyperparameters
 
+optimizer:
+  name: "torch.optim.SGD"
+  kwargs: { lr: 1.0 }
+
+scheduler:
+  name: "torch.optim.lr_scheduler.CosineAnnealingLR"
+  kwargs: { T_max: 20000, eta_min: 0.000001 }
+
 algorithm:
   name: "csrlearning.algorithms.CSEBilevelStoGrad"
   kwargs:
-    state:
-      latent_dim: 30
-      lr_u: 1.0
-      lr_v: 0.1
-      eta: 1.0
-      reg_c: 0.1
-      n_opt_pred: 1
-      t_max: 20000
-      tied_encoders: false
-    regressor:
-      name: "csrlearning.linear_regressor.IterativeDiffRegressor"
-      kwargs:
-        symmetric: true
-        with_adjoint: true
-      optimizer:
-        name: "torch.optim.SGD"
-        kwargs: { lr: 1.0 }
-      scheduler:
-        name: "torch.optim.lr_scheduler.CosineAnnealingLR"
-        kwargs: { T_max: 20000, eta_min: 0.000001 }
+    n_iter: 1
+    latent_dim: 30
+    reg: 0.1
+    symmetric: true
+    with_adjoint: true
+    lr: 1.0
+    T_max: 20000

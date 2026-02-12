@@ -103,7 +103,7 @@ class CCAExperimentRunner:
 
     def  step(self):
 
-            state = None
+            state = self.algorithm.get_internal_state()
             for _ in range(self.algorithm.inner_steps()):
                 update_batch = next(self.infinite_loader)
                 with torch.no_grad():
@@ -135,11 +135,12 @@ class CCAExperimentRunner:
     def run_vector_field_experiment(self):
         set_seed(self.cfg.init_seed)
         self.reset_parameters(mode=self.cfg.init_mode, scale=self.cfg.init_scale)
-        info = {
-            k: (v.cpu().numpy() if torch.is_tensor(v) else v)
-            for k, v in self.loader.info.items()
-        }
-        self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
+        if self.loader.info is not None:
+            info = {
+                k: (v.cpu().numpy() if torch.is_tensor(v) else v)
+                for k, v in self.loader.info.items()
+            }
+            self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
         for step in range(self.cfg.steps_per_epoch):
             with torch.no_grad():
                 spectral_metrics = compute_spectral_metrics(
@@ -206,9 +207,9 @@ class Tracker:
         return metrics, artifact_dict
 
     def track_spectral_metrics(self,metrics):
-        s1, s2 = metrics['spectrum'][0], metrics['spectrum'][1]
-        ts1, ts2 = metrics['target_spectrum'][0], metrics['target_spectrum'][1]
-        align1, align2 = metrics["alignment"][0], metrics["alignment"][1]
+        s1, s2 = metrics.spectrum[0], metrics.spectrum[1]
+        ts1, ts2 = metrics.target_spectrum[0], metrics.target_spectrum[1]
+        align1, align2 = metrics.alignment[0], metrics.alignment[1]
 
         spectral_metrics = {"singval_1": s1.item(),
                             "singval_2": s2.item(),
@@ -218,8 +219,8 @@ class Tracker:
                             "align_2": align2.item(),
                             }
         artifact_dict = {
-                        "alignment": metrics["alignment"].cpu().numpy(),
-                        "spectrum": metrics['spectrum'].cpu().numpy(),
+                        "alignment": metrics.alignment.cpu().numpy(),
+                        "spectrum": metrics.spectrum.cpu().numpy(),
                         }
         return spectral_metrics, artifact_dict
 
