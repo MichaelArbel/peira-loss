@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import torch
 
 from csrlearning_experiments.evaluation.evaluation import compute_alignment, compute_algorithm_spectrum
-from csrlearning_experiments.data.generator import LinearCCADataGenerator
+from csrlearning_experiments.datasets.gaussian import LinearCCADataGenerator
 from csrlearning_experiments.factory import instantiate
 from csrlearning_experiments.training.pipeline import compute_covariance, encode
 from csrlearning_experiments.training.optimizer_bundle import OptimizerBundle

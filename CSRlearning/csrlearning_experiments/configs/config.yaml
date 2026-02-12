@@ -20,7 +20,7 @@ type: "double"
 
 # Data Generation Parameters
 data:
-  name: "csrlearning_experiments.data.generator.LinearCCADataGenerator"
+  name: "csrlearning_experiments.datasets.gaussian.LinearCCADataGenerator"
   kwargs: 
     d1: 20                 # Dimension of view 1
     d2: 20                 # Dimension of view 2

@@ -4,7 +4,7 @@ import torch
 
 from csrlearning.algorithms import UnconstrainedCCAAlgorithm
 from csrlearning_experiments.factory import build_optimizer_bundle
-from csrlearning_experiments.data.generator import LinearCCADataGenerator
+from csrlearning_experiments.datasets.gaussian import LinearCCADataGenerator
 from csrlearning_experiments.training.pipeline import encode
 
 
