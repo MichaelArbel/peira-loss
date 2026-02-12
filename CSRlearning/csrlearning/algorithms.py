@@ -44,6 +44,10 @@ class CSEAlgorithm(BaseAlgorithm):
         super().__init__()
         self.reg = reg
 
+    def forward(self, X, Y, state):
+        pred, adjoint_pred = state.pred, state.adjoint
+        return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
+
 class SSLAlgorithm(BaseAlgorithm):
     def __init__(self, reg):
         super().__init__()
@@ -52,7 +56,13 @@ class SSLAlgorithm(BaseAlgorithm):
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
-        return [], []
+        return super().configure(encoders)
+
+    def forward(self, X, Y, state):
+        loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
+        return loss
+
 
 class CSEExactRegressionAlgorithm(CSEAlgorithm):
     def forward(self, X, Y, state):
@@ -67,15 +77,26 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
     Models that contain a linear regressor that is optimized 
     during call to update_internal_state method
     """
-    def __init__(self, latent_dim, reg, n_iter, regressor_spec):
+    def __init__(self, regressor_cl, 
+                       reg, 
+                       n_iter, 
+                       latent_dim,
+                       optimizer_ctor, 
+                       scheduler_ctor
+                       symmetric,
+                       with_adjoint):
         super().__init__()
-        self.reg = reg
-        self.latent_dim = latent_dim
         self.n_iter = n_iter
-        self.regressor = build_regressor(regressor_spec, 
-                                        self.latent_dim,
-                                        self.reg)
-        self.encoders = None
+        self.reg = reg
+        self.regressor = regressor_cl(
+            pred_init=torch.zeros(latent_dim,latent_dim),
+            adjoint_init=torch.zeros(latent_dim,latent_dim),
+            optimizer_ctor=optimizer_ctor,
+            scheduler_ctor=scheduler_ctor,
+            reg=self.reg,
+            symmetric=symmetric,
+            with_adjoint=with_adjoint
+        )
 
     def inner_steps(self) -> int:
         return self.n_iter
@@ -94,61 +115,21 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         return state
 
 
-
-
-class CSEStoCompGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
-    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
-
-        regressor = "MomentumRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=True, 
-                                            with_adjoint=True)
-        super().__init__(latent_dim=latent_dim, 
-                         reg=reg, 
-                         n_iter= n_iter, 
-                         regressor_spec= regressor_spec)
-
-    def forward(self, X, Y, state):
-        pred, adjoint_pred = state.pred, state.adjoint
-        return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
-
-
-
-
-class CSEBilevelStoGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
-    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
-
-        regressor = "IterativeDiffRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=True, 
-                                            with_adjoint=True)
-        super().__init__(latent_dim=latent_dim, 
-                         reg=reg, 
-                         n_iter= n_iter, 
-                         regressor_spec= regressor_spec)
-
-    def forward(self, X, Y, state):
-        pred, adjoint_pred = state.pred, state.adjoint
-        return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
-
-
-
-class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorithm):
-    def __init__(self, latent_dim, reg, T_max, lr):
-        regressor = "IterativeDiffRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=True, 
-                                            with_adjoint=True)
-        super().__init__(latent_dim=latent_dim, 
-                         reg=reg, 
-                         n_iter= 1, 
-                         regressor_spec= regressor_spec)
+class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
+    def __init__(self, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+        n_iter = 1
+        from .linear_regressor import IterativeDiffRegressor
+        optimizer_ctor=lambda params: torch.optim.SGD(params, lr=lr),
+        scheduler_ctor=lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max),
+        super().__init__(IterativeDiffRegressor, 
+                         reg, 
+                         n_iter, 
+                         latent_dim,
+                         optimizer_ctor, 
+                         scheduler_ctor
+                         symmetric=symmetric,
+                         with_adjoint=with_adjoint
+                         )
 
     def inner_steps(self) -> int:
         return 0
@@ -158,6 +139,128 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
 
     def update_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
+
+
+
+
+
+
+class StoCompGrad(StochasticCompositionalGradientAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+        from .linear_regressor import MomentumRegressor
+        optimizer_ctor=lambda params: torch.optim.SGD(params, lr=lr),
+        scheduler_ctor=lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max),
+        super().__init__(MomentumRegressor, 
+                         reg, 
+                         n_iter, 
+                         latent_dim,
+                         optimizer_ctor, 
+                         scheduler_ctor
+                         symmetric=symmetric,
+                         with_adjoint=with_adjoint
+                         )
+
+
+
+class BilevelStoGrad(StochasticCompositionalGradientAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, symmetric, with_adjoint, lr=0.01, T_max=20000):
+
+        from .linear_regressor import IterativeDiffRegressor
+        optimizer_ctor=lambda params: torch.optim.SGD(params, lr=lr),
+        scheduler_ctor=lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max),
+        super().__init__(IterativeDiffRegressor, 
+                         reg, 
+                         n_iter, 
+                         latent_dim,
+                         optimizer_ctor, 
+                         scheduler_ctor
+                         symmetric=symmetric,
+                         with_adjoint=with_adjoint
+                         )
+
+
+
+
+class CSEStoCompGrad(StoCompGrad, CSEAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
+        super.__init__( n_iter= n_iter, 
+                        latent_dim=latent_dim, 
+                        reg=reg, 
+                        symmetric = True, 
+                        with_adjoint = True, 
+                        lr=lr, 
+                        T_max=T_max)
+
+
+class SSLStoCompSemiGrad(StoCompGrad,SSLAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
+        super.__init__( n_iter= n_iter, 
+                        latent_dim=latent_dim, 
+                        reg=reg, 
+                        symmetric = False, 
+                        with_adjoint = False, 
+                        lr=lr, 
+                        T_max=T_max)
+
+
+
+class CSEBilevelStoGrad(BilevelStoGrad, CSEAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
+        super.__init__( n_iter= n_iter, 
+                        latent_dim=latent_dim, 
+                        reg=reg, 
+                        symmetric = True, 
+                        with_adjoint = True, 
+                        lr=lr, 
+                        T_max=T_max)
+
+
+
+class SSLBilevelStoSemiGrad(BilevelStoGrad, SSLAlgorithm):
+    def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
+        super.__init__( n_iter= n_iter, 
+                        latent_dim=latent_dim, 
+                        reg=reg, 
+                        symmetric = False, 
+                        with_adjoint = False, 
+                        lr=lr, 
+                        T_max=T_max)
+
+
+
+
+
+
+class SSLStoSemiGradJoint(BilevelStoGradJoint,SSLAlgorithm):
+    def __init__(self, latent_dim, reg, lr=0.01, T_max=20000):
+        super().__init__(
+                        latent_dim=latent_dim,
+                        reg= reg, 
+                        symmetric= False, 
+                        with_adjoint= False, 
+                        lr=lr, 
+                        T_max=T_max)
+
+    def configure(self, encoders):
+        self._weights = [param for param in encoders[0].parameters()]
+        return [self.regressor.optimizer], [self.regressor.scheduler]
+
+    def forward(self, X, Y, state):
+        pred = self.regressor.pred
+        loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
+        return loss
+    
+
+class CSEBilevelStoGradJoint(BilevelStoGradJoint,CSEAlgorithm):
+    def __init__(self, latent_dim, reg, lr=0.01, T_max=20000):
+                super().__init__(
+                        latent_dim=latent_dim,
+                        reg= reg, 
+                        symmetric= True, 
+                        with_adjoint= True, 
+                        lr=lr, 
+                        T_max=T_max)
 
     def forward(self, X, Y, state):
         pred = self.regressor.pred
@@ -170,71 +273,4 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
         return pred_loss + adjoint_loss + loss_aux
 
 
-class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
-    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "csrlearning.linear_regressor.MomentumRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=False, 
-                                            with_adjoint=False)
-        super().__init__(latent_dim=latent_dim, 
-                         reg=reg, 
-                         n_iter= n_iter, 
-                         regressor_spec= regressor_spec)
-
-    def forward(self, X, Y, state):
-        loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
-        return loss
-
-
-class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
-    def __init__(self, latent_dim, reg, n_iter, T_max, lr):
-
-        regressor = "csrlearning.linear_regressor.IterativeDiffRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=False, 
-                                            with_adjoint=False)
-        super().__init__(latent_dim=latent_dim, 
-                 reg=reg, 
-                 n_iter= n_iter, 
-                 regressor_spec= regressor_spec)
-
-    def forward(self, X, Y, state):
-        loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
-        return loss
-
-
-
-class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
-    def __init__(self, latent_dim, reg, T_max, lr):
-        regressor = "IterativeDiffRegressor"
-        regressor_spec = get_regressor_spec(regressor, 
-                                            lr, 
-                                            T_max, 
-                                            symmetric=False, 
-                                            with_adjoint=False)
-        super().__init__(latent_dim=latent_dim, 
-                 reg=reg, 
-                 n_iter= 1, 
-                 regressor_spec= regressor_spec)
-    def inner_steps(self) -> int:
-        return 0
-
-    def configure(self, encoders):
-        self._weights = [param for param in encoders[0].parameters()]
-        return [self.regressor.optimizer], [self.regressor.scheduler]
-
-    def update_internal_state(self, X,Y) -> AlgorithmState:
-        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
-
-    def forward(self, X, Y, state):
-        pred = self.regressor.pred
-        loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
-        return loss
