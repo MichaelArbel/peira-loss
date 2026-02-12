@@ -1,0 +1,6 @@
+name: "csrlearning.algorithms.SSLStoSemiGradJoint"
+kwargs:
+  latent_dim: 30
+  reg: 0.1
+  lr: 0.1
+  T_max: 20000

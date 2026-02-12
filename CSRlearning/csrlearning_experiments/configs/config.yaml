@@ -1,3 +1,6 @@
+defaults:
+  - algorithm: cse_bilevel
+
 seed: 0
 
 # task: 
@@ -40,14 +43,3 @@ optimizer:
 scheduler:
   name: "torch.optim.lr_scheduler.CosineAnnealingLR"
   kwargs: { T_max: 20000, eta_min: 0.000001 }
-
-algorithm:
-  name: "csrlearning.algorithms.CSEBilevelStoGrad"
-  kwargs:
-    n_iter: 1
-    latent_dim: 30
-    reg: 0.1
-    symmetric: true
-    with_adjoint: true
-    lr: 1.0
-    T_max: 20000

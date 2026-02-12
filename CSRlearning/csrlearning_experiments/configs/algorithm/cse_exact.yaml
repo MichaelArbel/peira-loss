@@ -1,0 +1,4 @@
+name: "csrlearning.algorithms.CSEExactRegressionAlgorithm"
+kwargs:
+  reg: 0.1
+  latent_dim: 30
