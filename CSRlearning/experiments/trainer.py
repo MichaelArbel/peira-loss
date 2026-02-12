@@ -49,7 +49,7 @@ class CCAExperimentRunner:
 
 
         self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
-        ext_opts, ext_scheds = self.algorithm.external_optimizers()
+        ext_opts, ext_scheds = self.algorithm.configure(self.encoders)
         for opt, sch in zip(ext_opts, ext_scheds):
             self.optimizers.add(opt, sch, managed_by_algorithm=False)
 

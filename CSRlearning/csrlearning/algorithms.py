@@ -16,7 +16,7 @@ class BaseAlgorithm(nn.Module):
         super().__init__()
         self.stop_grad = False
 
-    def external_optimizers(self):
+    def configure(self, encoders):
         return [], []
 
     def forward(self, X, Y, state):
@@ -47,11 +47,9 @@ class SSLAlgorithm(BaseAlgorithm):
         self.stop_grad = True
         self.reg = reg
 
-    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
-        state = super().update_internal_state(data_gen, encoders)
-        weights = [params for  params in encoders[0].parameters()]
-        state.extras["weights"] = weights
-        return state
+    def configure(self, encoders):
+        self._weights = [param for param in encoders[0].parameters()]
+        return [], []
 
 class CSEExactRegressionAlgorithm(CSEAlgorithm):
     def forward(self, X, Y, state):
@@ -151,14 +149,11 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
                          regressor_spec= regressor_spec)
 
 
-    def external_optimizers(self):
+    def configure(self, encoders):
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
     def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
-        return AlgorithmState(
-            extras={"consumed_batches": 0},
-            stop_grad=self.stop_grad,
-        )
+        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def forward(self, X, Y, state):
         pred = self.regressor.pred
@@ -187,8 +182,7 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
 
     def forward(self, X, Y, state):
         loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        weights = state.extras.get("weights", [])
-        loss = loss + 0.5 * self.reg * l2_penalty(weights)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
         return loss
 
 
@@ -208,8 +202,7 @@ class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorith
 
     def forward(self, X, Y, state):
         loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        weights = state.extras.get("weights", [])
-        loss = loss + 0.5 * self.reg * l2_penalty(weights)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
         return loss
 
 
@@ -228,19 +221,15 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
                  regressor_spec= regressor_spec)
 
 
-    def external_optimizers(self):
+    def configure(self, encoders):
+        self._weights = [param for param in encoders[0].parameters()]
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
     def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
-        weights = [ params for  params in encoders[0].parameters()]
-        return AlgorithmState(
-            extras={"consumed_batches": 0, "weights": weights},
-            stop_grad=self.stop_grad,
-        )
+        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
     def forward(self, X, Y, state):
         pred = self.regressor.pred
         loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
-        weights = state.extras.get("weights", [])
-        loss = loss + 0.5 * self.reg * l2_penalty(weights)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
         return loss
