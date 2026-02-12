@@ -43,13 +43,12 @@ class CCAExperimentRunner:
  
 
         algorithm_cfg = cfg.algorithm
-        state_cfg = algorithm_cfg.kwargs.state
-        regressor_cfg = algorithm_cfg.kwargs.regressor
+        algo_kwargs = algorithm_cfg.kwargs
 
         d1 = cfg.data.kwargs.d1
         d2 = cfg.data.kwargs.d2
-        latent_dim = state_cfg.get("latent_dim")
-        self.tied_encoders = bool(state_cfg.get("tied_encoders", False))
+        latent_dim = algo_kwargs.get("latent_dim")
+        self.tied_encoders = bool(algo_kwargs.get("tied_encoders", False))
 
         view1 = nn.Linear(d1, latent_dim, bias=False)
         if self.tied_encoders:
