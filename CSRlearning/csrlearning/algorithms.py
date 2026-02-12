@@ -198,7 +198,7 @@ class BilevelStoGrad(StochasticCompositionalGradientAlgorithm):
 
 
 
-class CSEStoCompGrad(StoCompGrad, CSEAlgorithm):
+class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
     def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
         super().__init__( n_iter= n_iter, 
                         latent_dim=latent_dim, 
@@ -209,7 +209,7 @@ class CSEStoCompGrad(StoCompGrad, CSEAlgorithm):
                         T_max=T_max)
 
 
-class SSLStoCompSemiGrad(StoCompGrad,SSLAlgorithm):
+class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
     def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
         super().__init__( n_iter= n_iter, 
                         latent_dim=latent_dim, 
@@ -221,7 +221,7 @@ class SSLStoCompSemiGrad(StoCompGrad,SSLAlgorithm):
 
 
 
-class CSEBilevelStoGrad(BilevelStoGrad, CSEAlgorithm):
+class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
     def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
         super().__init__( n_iter= n_iter, 
                         latent_dim=latent_dim, 
@@ -233,7 +233,7 @@ class CSEBilevelStoGrad(BilevelStoGrad, CSEAlgorithm):
 
 
 
-class SSLBilevelStoSemiGrad(BilevelStoGrad, SSLAlgorithm):
+class SSLBilevelStoSemiGrad(SSLAlgorithm, BilevelStoGrad):
     def __init__(self, n_iter, latent_dim, reg, lr=0.01, T_max=20000):
         super().__init__( n_iter= n_iter, 
                         latent_dim=latent_dim, 
@@ -288,5 +288,4 @@ class CSEBilevelStoGradJoint(BilevelStoGradJoint,CSEAlgorithm):
         adjoint_loss = self.regressor.adjoint_loss(X_det, Y_det, adjoint, self.reg)
         loss_aux = cse_auxiliary_loss(X, Y, pred.detach(), adjoint.detach(), self.reg)
         return pred_loss + adjoint_loss + loss_aux
-
 
