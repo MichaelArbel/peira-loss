@@ -20,7 +20,7 @@ type: "double"
 
 # Data Generation Parameters
 data:
-  name: "experiments.generator.LinearCCADataGenerator"
+  name: "experiments.data.generator.LinearCCADataGenerator"
   kwargs: 
     d1: 20                 # Dimension of view 1
     d2: 20                 # Dimension of view 2

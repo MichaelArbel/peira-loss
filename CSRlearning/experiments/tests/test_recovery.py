@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import torch
 
-from experiments.evaluation import compute_alignment, compute_algorithm_spectrum
-from experiments.generator import LinearCCADataGenerator
+from experiments.evaluation.evaluation import compute_alignment, compute_algorithm_spectrum
+from experiments.data.generator import LinearCCADataGenerator
 from factory import instantiate
 
 

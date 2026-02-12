@@ -1,7 +1,7 @@
 import torch
 from experiments.exp_types import SpectralMetrics
-from experiments.pipeline import compute_covariance, encode
-from experiments.spectra import (
+from experiments.training.pipeline import compute_covariance, encode
+from experiments.evaluation.spectra import (
     compute_cse_spectrum,
     compute_semigrad_spectrum,
     compute_unconstrained_cca_spectrum,

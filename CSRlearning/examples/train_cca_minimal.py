@@ -4,8 +4,8 @@ import torch
 
 from csrlearning.algorithms import UnconstrainedCCAAlgorithm
 from experiments.factory import build_optimizer_bundle
-from experiments.generator import LinearCCADataGenerator
-from experiments.pipeline import encode
+from experiments.data.generator import LinearCCADataGenerator
+from experiments.training.pipeline import encode
 
 
 def main():
