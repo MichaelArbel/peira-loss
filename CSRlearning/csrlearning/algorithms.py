@@ -59,7 +59,7 @@ class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
 class CSEAlgorithm(BaseAlgorithm):
     def __init__(self, reg, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(reg=reg, **kwargs)
         self.reg = reg
 
     def forward(self, X, Y, state):
@@ -68,7 +68,7 @@ class CSEAlgorithm(BaseAlgorithm):
 
 class SSLAlgorithm(BaseAlgorithm):
     def __init__(self, reg, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(reg=reg, **kwargs)
         self.stop_grad = True
         self.tied_encoders = True
         self.reg = reg
@@ -327,7 +327,6 @@ class SSLBilevelStoSemiGrad(SSLAlgorithm, BilevelStoGrad):
                 T_max=20000,
                 **kwargs):
         super().__init__( 
-                        self,
                         n_iter= n_iter, 
                         latent_dim=latent_dim, 
                         reg=reg, 
@@ -368,6 +367,5 @@ class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
         loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
         return loss
     
-
 
 
