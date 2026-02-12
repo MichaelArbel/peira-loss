@@ -45,7 +45,7 @@ def main():
     )
 
     algorithm = UnconstrainedCCAAlgorithm()
-    algorithm.configure(encoders, optimizer_bundle)
+    algorithm.set_encoders(encoders)
 
     steps = 1000
     for step in range(steps):

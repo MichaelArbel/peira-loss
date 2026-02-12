@@ -17,8 +17,11 @@ class BaseAlgorithm(nn.Module):
         super().__init__()
         self.stop_grad = False
 
-    def configure(self, encoders, optimizers):
-        pass
+    def set_encoders(self, encoders):
+        self.encoders = encoders
+
+    def external_optimizers(self):
+        return [], []
 
     def compute_loss(self, X, Y, state):
         raise NotImplementedError
@@ -70,9 +73,7 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
                                         self.reg)
         self.encoders = None
 
-    def configure(self, encoders, optimizers):
-        if hasattr(self.regressor, "scheduler"):
-            optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=True)
+    def set_encoders(self, encoders):
         self.encoders = encoders
 
     def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
@@ -153,9 +154,8 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
                          regressor_spec= regressor_spec)
 
 
-    def configure(self, encoders, optimizers):
-        super().configure(encoders, optimizers)
-        optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
+    def external_optimizers(self):
+        return [self.regressor.optimizer], [self.regressor.scheduler]
 
     def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
@@ -226,9 +226,8 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
                  regressor_spec= regressor_spec)
 
 
-    def configure(self, encoders, optimizers):
-        super().configure(encoders, optimizers)
-        optimizers.add(self.regressor.optimizer, self.regressor.scheduler, managed_by_algorithm=False)
+    def external_optimizers(self):
+        return [self.regressor.optimizer], [self.regressor.scheduler]
 
     def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)

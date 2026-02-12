@@ -49,7 +49,10 @@ class CCAExperimentRunner:
 
 
         self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
-        self.algorithm.configure(self.encoders, self.optimizers)
+        self.algorithm.set_encoders(self.encoders)
+        ext_opts, ext_scheds = self.algorithm.external_optimizers()
+        for opt, sch in zip(ext_opts, ext_scheds):
+            self.optimizers.add(opt, sch, managed_by_algorithm=False)
 
         def cast(module, cast_type):
             if cast_type=="double":
