@@ -19,7 +19,7 @@ class EncodedBatch:
         return self.views[1]
 
 
-@dataclass
+@dataclass(frozen=False)
 class AlgorithmState:
     pred: Any = None
     adjoint: Any = None

@@ -17,24 +17,24 @@ class BaseAlgorithm(nn.Module):
         super().__init__()
         self.stop_grad = False
 
-    def set_encoders(self, encoders):
-        self.encoders = encoders
-
     def external_optimizers(self):
         return [], []
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         raise NotImplementedError
 
-    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
-        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
+    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+        return AlgorithmState(
+            extras={"consumed_batches": 0},
+            stop_grad=self.stop_grad,
+        )
 
 
 
 
 class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         return eckhart_young_loss(X, Y)
 
 class CSEAlgorithm(BaseAlgorithm):
@@ -48,10 +48,14 @@ class SSLAlgorithm(BaseAlgorithm):
         self.stop_grad = True
         self.reg = reg
 
-
+    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+        state = super().update_internal_state(data_gen, encoders)
+        weights = [params for  params in encoders[0].parameters()]
+        state.extras["weights"] = weights
+        return state
 
 class CSEExactRegressionAlgorithm(CSEAlgorithm):
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         return cse_loss(X, Y, None, self.reg)
 
 
@@ -73,28 +77,22 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
                                         self.reg)
         self.encoders = None
 
-    def set_encoders(self, encoders):
-        self.encoders = encoders
-
-    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
+    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+        state = super().update_internal_state(data_gen, encoders)
         for _ in range(self.n_iter):
             with torch.no_grad():
                 data = next(data_gen)
-                outputs = encode(data, self.encoders)
+                outputs = encode(data, encoders)
             self.pred = self.regressor(outputs.x1.detach(), outputs.x2.detach())
         consumed = self.n_iter
+        state.extras["consumed_batches"] = consumed
+
         if isinstance(self.pred, tuple) and len(self.pred) == 2:
-            return AlgorithmState(
-                pred=self.pred[0],
-                adjoint=self.pred[1],
-                extras={"consumed_batches": consumed},
-                stop_grad=self.stop_grad,
-            )
-        return AlgorithmState(
-            pred=self.pred,
-            extras={"consumed_batches": consumed},
-            stop_grad=self.stop_grad,
-        )
+            state.pred = self.pred[0]
+            state.adjoint = self.pred[1]
+        else:
+            state.pred = self.pred
+        return state
 
 
 
@@ -113,7 +111,7 @@ class CSEStoCompGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         pred, adjoint_pred = state.pred, state.adjoint
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
 
@@ -134,7 +132,7 @@ class CSEBilevelStoGrad(StochasticCompositionalGradientAlgorithm, CSEAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         pred, adjoint_pred = state.pred, state.adjoint
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
 
@@ -157,10 +155,13 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
     def external_optimizers(self):
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
-    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
-        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
+    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+        return AlgorithmState(
+            extras={"consumed_batches": 0},
+            stop_grad=self.stop_grad,
+        )
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         pred = self.regressor.pred
         adjoint = self.regressor.adjoint
         X_det, Y_det = X.detach(), Y.detach()
@@ -185,9 +186,10 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
                          n_iter= n_iter, 
                          regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        weights = state.extras.get("weights", [])
+        loss = loss + 0.5 * self.reg * l2_penalty(weights)
         return loss
 
 
@@ -205,9 +207,10 @@ class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorith
                  n_iter= n_iter, 
                  regressor_spec= regressor_spec)
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         loss = linear_probe_loss(X, Y, state.pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        weights = state.extras.get("weights", [])
+        loss = loss + 0.5 * self.reg * l2_penalty(weights)
         return loss
 
 
@@ -229,11 +232,16 @@ class SSLStoSemiGradJoint(StochasticCompositionalGradientAlgorithm,SSLAlgorithm)
     def external_optimizers(self):
         return [self.regressor.optimizer], [self.regressor.scheduler]
 
-    def update_internal_state(self, data_gen: DataSource) -> AlgorithmState:
-        return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
+    def update_internal_state(self, data_gen: DataSource, encoders) -> AlgorithmState:
+        weights = [ params for  params in encoders[0].parameters()]
+        return AlgorithmState(
+            extras={"consumed_batches": 0, "weights": weights},
+            stop_grad=self.stop_grad,
+        )
 
-    def compute_loss(self, X, Y, state):
+    def forward(self, X, Y, state):
         pred = self.regressor.pred
         loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
-        loss = loss + 0.5 * self.reg * l2_penalty(self.encoders[0])
+        weights = state.extras.get("weights", [])
+        loss = loss + 0.5 * self.reg * l2_penalty(weights)
         return loss

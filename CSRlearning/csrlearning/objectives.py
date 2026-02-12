@@ -3,9 +3,9 @@ from .linalg_utils import PDInverse, add_ridge
 
 
 
-def l2_penalty(model):
+def l2_penalty(param_list):
     pen = 0.
-    for param in model.parameters():
+    for param in param_list:
         pen += torch.sum(param ** 2)
     return pen
 

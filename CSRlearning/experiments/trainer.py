@@ -49,7 +49,6 @@ class CCAExperimentRunner:
 
 
         self.algorithm = instantiate(cfg.algorithm.name)(cfg.algorithm.kwargs)
-        self.algorithm.set_encoders(self.encoders)
         ext_opts, ext_scheds = self.algorithm.external_optimizers()
         for opt, sch in zip(ext_opts, ext_scheds):
             self.optimizers.add(opt, sch, managed_by_algorithm=False)
@@ -87,12 +86,12 @@ class CCAExperimentRunner:
 
     def  step(self):
 
-            state = self.algorithm.update_internal_state(self.loader)
+            state = self.algorithm.update_internal_state(self.loader, self.encoders)
             self.optimizers.zero_grad()
             
             data = next(self.loader)
             output = encode(data, self.encoders, state.stop_grad)
-            loss = self.algorithm.compute_loss(output.x1, output.x2, state)
+            loss = self.algorithm(output.x1, output.x2, state)
             loss.backward()
 
 

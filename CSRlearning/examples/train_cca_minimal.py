@@ -45,16 +45,15 @@ def main():
     )
 
     algorithm = UnconstrainedCCAAlgorithm()
-    algorithm.set_encoders(encoders)
 
     steps = 1000
     for step in range(steps):
-        state = algorithm.update_internal_state(data_source)
+        state = algorithm.update_internal_state(data_source, encoders)
         optimizer_bundle.zero_grad()
 
         batch = next(data_source)
         outputs = encode(batch, encoders, state.stop_grad)
-        loss = algorithm.compute_loss(outputs.x1, outputs.x2, state)
+        loss = algorithm(outputs.x1, outputs.x2, state)
         loss.backward()
         optimizer_bundle.step()
 
