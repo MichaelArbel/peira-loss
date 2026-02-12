@@ -4,7 +4,7 @@ import mlxp
 # 4. Entry Point
 @mlxp.launch(config_path='./configs')
 def main(ctx: mlxp.Context):
-    from trainer import CCAExperimentRunner
+    from experiments.trainer import CCAExperimentRunner
     from utils import set_seed
 
     set_seed(ctx.config.seed)

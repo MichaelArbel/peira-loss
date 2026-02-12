@@ -20,8 +20,8 @@ parent_log_dir="../data/outputs/deterministic_9"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm","core.algorithms.SemiGradientSSLAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm","csrlearning.algorithms.SemiGradientSSLAlgorithm"\
 #                 task.init_seed=0,1,2,3,4\
 #                 task.init_scale=1.,0.1,0.01,0.001,0.0001\
 #                 algorithm.kwargs.state.reg_c=0.01\
@@ -38,8 +38,8 @@ parent_log_dir="../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
-#                 algorithm.name="core.algorithms.SemiGradientSSLAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.SemiGradientSSLAlgorithm"\
 #                 task.init_scale=1.\
 #                 data.kwargs.deterministic=True\
 #                 algorithm.kwargs.state.reg_c=0.01\
@@ -52,8 +52,8 @@ parent_log_dir="../data/outputs/debug"
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm"\
 #                 task.init_scale=0.0001\
 #                 data.kwargs.deterministic=True\
 #                 algorithm.kwargs.state.reg_c=0.01\
@@ -68,8 +68,8 @@ parent_log_dir="../data/outputs/debug"
 
 
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-                algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
-                algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+                algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+                algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
                 task.init_scale=0.0001\
                 data.kwargs.deterministic=True\
                 algorithm.kwargs.state.reg_c=0.1\
@@ -88,8 +88,8 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-#                 algorithm.name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
-#                 algorithm.name="core.algorithms.UnconstrainedCCAAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"\
+#                 algorithm.name="csrlearning.algorithms.UnconstrainedCCAAlgorithm"\
 #                 task.init_scale=0.0001\
 #                 data.kwargs.deterministic=True\
 #                 algorithm.kwargs.state.reg_c=0.1\

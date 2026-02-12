@@ -1,6 +1,6 @@
 import torch
 
-from core.core_types import DataInfo, DataSource
+from csrlearning.core_types import DataInfo, DataSource
 
 class LinearCCADataGenerator(DataSource):
     """

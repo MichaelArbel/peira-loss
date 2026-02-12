@@ -2,10 +2,10 @@ from types import SimpleNamespace
 
 import torch
 
-from core.algorithms import UnconstrainedCCAAlgorithm
+from csrlearning.algorithms import UnconstrainedCCAAlgorithm
 from factory import build_optimizer_bundle
-from generator import LinearCCADataGenerator
-from core.pipeline import encode
+from experiments.generator import LinearCCADataGenerator
+from csrlearning.pipeline import encode
 
 
 def main():

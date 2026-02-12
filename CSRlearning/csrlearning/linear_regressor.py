@@ -151,4 +151,3 @@ def build_regressor(spec, latent_dim, reg):
         symmetric=kwargs.get("symmetric", True),
         with_adjoint=kwargs.get("with_adjoint", False),
     )
-

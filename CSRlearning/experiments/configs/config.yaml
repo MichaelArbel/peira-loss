@@ -34,7 +34,7 @@ data:
 # SCEgrad Hyperparameters
 
 algorithm:
-  name: "core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"
+  name: "csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm"
   kwargs:
     state:
       latent_dim: 30
@@ -46,7 +46,7 @@ algorithm:
       t_max: 20000
       tied_encoders: false
     regressor:
-      name: "core.linear_regressor.IterativeDiffRegressor"
+      name: "csrlearning.linear_regressor.IterativeDiffRegressor"
       kwargs:
         symmetric: true
         with_adjoint: true

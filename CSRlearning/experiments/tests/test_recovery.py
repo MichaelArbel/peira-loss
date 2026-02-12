@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import torch
 
-from evaluation import compute_alignment
-from generator import LinearCCADataGenerator
+from experiments.evaluation import compute_alignment
+from experiments.generator import LinearCCADataGenerator
 from factory import instantiate
 
 
@@ -176,7 +176,7 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
     }
 
     regressor_spec = {
-        "name": "core.linear_regressor.IterativeDiffRegressor",
+        "name": "csrlearning.linear_regressor.IterativeDiffRegressor",
         "kwargs": {"symmetric": True, "with_adjoint": True},
         "optimizer": {"name": "torch.optim.SGD", "kwargs": {"lr": 1.0}},
         "scheduler": {
@@ -187,25 +187,25 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
 
     return [
         AlgorithmTestConfig(
-            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm",
+            algorithm_name="csrlearning.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm",
+            algorithm_name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="core.algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
+            algorithm_name="csrlearning.algorithms.CanonicalSubspaceEmbeddingBilevelJointAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
         AlgorithmTestConfig(
-            algorithm_name="core.algorithms.SemiGradientSSLAlgorithm",
+            algorithm_name="csrlearning.algorithms.SemiGradientSSLAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec={
-                "name": "core.linear_regressor.MomentumRegressor",
+                "name": "csrlearning.linear_regressor.MomentumRegressor",
                 "kwargs": {"symmetric": False, "with_adjoint": False},
                 "scheduler": {
                     "name": "utils.CosineScheduler",
@@ -214,7 +214,7 @@ def default_algorithm_configs() -> List[AlgorithmTestConfig]:
             },
         ),
         AlgorithmTestConfig(
-            algorithm_name="core.algorithms.UnconstrainedCCAAlgorithm",
+            algorithm_name="csrlearning.algorithms.UnconstrainedCCAAlgorithm",
             state_kwargs=dict(base_state),
             regressor_spec=regressor_spec,
         ),
@@ -232,7 +232,7 @@ def main() -> None:
         "--algorithm",
         type=str,
         default=None,
-        help="Run a single algorithm by full class path (e.g., core.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm)",
+        help="Run a single algorithm by full class path (e.g., csrlearning.algorithms.CanonicalSubspaceEmbeddingExactAlgorithm)",
     )
     args = parser.parse_args()
 

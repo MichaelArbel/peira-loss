@@ -72,4 +72,3 @@ def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
 
 
 
-

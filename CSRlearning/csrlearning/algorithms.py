@@ -8,7 +8,7 @@ from .objectives import (
     l2_penalty,
     linear_probe_loss,
 )
-from evaluation import (
+from .spectra import (
     compute_cse_spectrum,
     compute_semigrad_spectrum,
     compute_unconstrained_cca_spectrum,
@@ -191,7 +191,7 @@ class CSEBilevelStoGradJoint(StochasticCompositionalGradientAlgorithm,CSEAlgorit
 class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "core.linear_regressor.MomentumRegressor"
+        regressor = "csrlearning.linear_regressor.MomentumRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 
@@ -211,7 +211,7 @@ class SSLStoCompSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
 class SSLBilevelStoSemiGrad(StochasticCompositionalGradientAlgorithm,SSLAlgorithm):
     def __init__(self, latent_dim, reg, n_iter, T_max, lr):
 
-        regressor = "core.linear_regressor.IterativeDiffRegressor"
+        regressor = "csrlearning.linear_regressor.IterativeDiffRegressor"
         regressor_spec = get_regressor_spec(regressor, 
                                             lr, 
                                             T_max, 

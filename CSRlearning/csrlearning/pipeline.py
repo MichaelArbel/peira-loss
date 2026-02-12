@@ -31,4 +31,3 @@ def compute_covariance(encode_fn, data_gen, num_batches=10):
             Covs[i + 1] += torch.matmul(output.t(), output) / (output.shape[0] * num_batches)
 
     return Covs[0], Covs[1:]
-
