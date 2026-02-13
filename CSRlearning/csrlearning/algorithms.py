@@ -31,7 +31,7 @@ class BaseAlgorithm(nn.Module):
         self.tied_encoders = False
 
     def configure(self, encoders):
-        return [], []
+        return [(None,None)]
 
     def inner_steps(self) -> int:
         return 0
@@ -120,6 +120,10 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
             with_adjoint=with_adjoint
         )
 
+    def configure(self, encoders):
+        return [(None,self.regressor.scheduler)]
+
+
     def inner_steps(self) -> int:
         assert self.n_iter>0
         return self.n_iter
@@ -166,7 +170,7 @@ class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
         return 0
 
     def configure(self, encoders):
-        return [self.regressor.optimizer], [self.regressor.scheduler]
+        return [(self.regressor.optimizer, self.regressor.scheduler)]
 
     def update_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
@@ -374,7 +378,7 @@ class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
-        return [self.regressor.optimizer], [self.regressor.scheduler]
+        return [(self.regressor.optimizer, self.regressor.scheduler)]
 
     def forward(self, X, Y, state):
         pred = self.regressor.pred

@@ -19,6 +19,9 @@ task:
 
 device: "cpu"          # or "cpu"
 type: "double"
+with_logging: True
+with_scheduler: True
+
 
 
 # Data Generation Parameters
@@ -43,11 +46,12 @@ model:
   kwargs:
     bias: False
 
-
+tracker:
+  momentum: 1.
 
 
 optimizer:
-  name: "torch.optim.AdamW"
+  name: "torch.optim.SGD"
   kwargs: 
     lr: .01
     weight_decay: 0.

@@ -32,7 +32,7 @@ class InfiniteLoader:
 class CCAExperimentRunner:
     def __init__(self, cfg, logger):
         self.logger = logger
-        self.tracker = Tracker()
+        self.tracker = Tracker(**cfg.tracker)
         self.device = cfg.device
         self.dtype = torch.float64 if cfg.type == "double" else torch.float32
 
@@ -40,7 +40,8 @@ class CCAExperimentRunner:
             device=self.device, dtype=self.dtype, **cfg.data.kwargs
         )
         self.infinite_loader = InfiniteLoader(self.loader)
- 
+        self.with_logging = cfg.with_logging
+        self.with_scheduler = cfg.with_scheduler
 
         algorithm_cfg = cfg.algorithm
         algo_kwargs = algorithm_cfg.kwargs
@@ -68,9 +69,9 @@ class CCAExperimentRunner:
         )
 
 
-        ext_opts, ext_scheds = self.algorithm.configure(self.encoders)
-        for opt, sch in zip(ext_opts, ext_scheds):
-            self.optimizers.add(opt, sch, managed_by_algorithm=False)
+        ext_opts_scheds = self.algorithm.configure(self.encoders)
+        for opt, sch in ext_opts_scheds:
+            self.optimizers.add(opt, sch)
 
         def cast(module, cast_type):
             if cast_type=="double":
@@ -117,8 +118,11 @@ class CCAExperimentRunner:
             output = encode(data, self.encoders, state.stop_grad)
             loss = self.algorithm(output.x1, output.x2, state)
             loss.backward()
-
+            #print(lol)
             self.optimizers.step()
+            if self.with_scheduler:
+                self.optimizers.schedule()
+
             return loss
 
     def train(self):
@@ -166,10 +170,11 @@ class CCAExperimentRunner:
                 spectral_metrics=spectral_metrics,
                 with_artifacts = store_artifacts
             )
-            self.logger.log_metrics( metrics, log_name="metrics")
+            if self.with_logging:
+                self.logger.log_metrics( metrics, log_name="metrics")
 
-            if artifact_dict is not None and store_artifacts:
-                self.logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
+                if artifact_dict is not None and store_artifacts:
+                    self.logger.log_artifacts(artifact_dict, f"alignments_{step}", artifact_type="pickle")
 
             if np.mod(step, 10) == 0:
                 pprint(metrics)

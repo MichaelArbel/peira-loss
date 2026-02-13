@@ -39,6 +39,6 @@ def build_optimizer_bundle(encoders, tied_encoders, optimizer_spec, scheduler_sp
 
     bundle = OptimizerBundle()
     for opt, sch in zip(optimizers, schedulers):
-        bundle.add(opt, sch, managed_by_algorithm=False)
+        bundle.add(opt, sch)
 
     return encoders, bundle

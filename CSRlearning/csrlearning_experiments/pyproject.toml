@@ -3,7 +3,7 @@ name = "csrlearning-experiments"
 version = "0.1.0"
 description = "Experiment runners and analysis for csrlearning"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = ["csrlearning", "torch", "numpy", "mlxp"]
 
 [build-system]
