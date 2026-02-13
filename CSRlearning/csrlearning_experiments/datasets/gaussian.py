@@ -39,6 +39,21 @@ class LinearCCADataGenerator:
             dtype,
             sign_flip=self.sign_flip,
         )
+        if self.deterministic:
+            b = self.batch_size if batch_size is None else batch_size
+            if self.empirical:
+                z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
+                eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
+                eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
+            else:
+                z, eps_1, eps_2 = generate_deterministic_data(
+                    b=b,
+                    d=[self.k, self.d1, self.d2],
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+            self.data = self.gen_data(z, eps_1, eps_2)
+
 
         #self.A1 = torch.randn(k, d1, device=device, dtype=dtype)
         #self.A2 = torch.randn(k, d2, device=device, dtype=dtype)
@@ -54,23 +69,12 @@ class LinearCCADataGenerator:
         """Samples a batch of correlated Gaussian data."""
         b = self.batch_size if batch_size is None else batch_size
         if self.deterministic:
-            if self.empirical:
-                z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
-                eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
-                eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
-            else:
-                z, eps_1, eps_2 = generate_deterministic_data(
-                    b=b,
-                    d=[self.k, self.d1, self.d2],
-                    device=self.device,
-                    dtype=self.dtype,
-                )
+            return self.data
+        else:
+            z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
+            eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
+            eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
             return self.gen_data(z, eps_1, eps_2)
-
-        z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
-        eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
-        eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
-        return self.gen_data(z, eps_1, eps_2)
 
     def gen_data(self, z, eps_1, eps_2):
         x1 = z @ self.A1.t() + self.sigma * eps_1

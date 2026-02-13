@@ -47,8 +47,8 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
                 task.init_scale=0.0001\
                 optimizer.kwargs.lr=0.0001\
                 optimizer.name="torch.optim.AdamW"\
-                algorithm.kwargs.lr=1.\
-                algorithm.kwargs.ema=.9\
+                algorithm.kwargs.lr=.1\
+                algorithm.kwargs.ema=1.\
                 data.kwargs.deterministic=False\
                 data.kwargs.sign_flip=False\
                 +mlxp.logger.parent_log_dir=$parent_log_dir\

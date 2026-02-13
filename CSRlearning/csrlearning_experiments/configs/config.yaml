@@ -17,7 +17,7 @@ task:
   init_mode: "near_zero"
 
 
-device: "cuda"          # or "cpu"
+device: "cpu"          # or "cpu"
 type: "double"
 
 
@@ -29,7 +29,7 @@ data:
     d2: 20                 # Dimension of view 2
     k: 10                   # Ground truth latent dimension
     sigma: 0.1              # Noise level epsilon
-    batch_size: 512
+    batch_size: 50
     deterministic: True
     sign_flip: False
 
