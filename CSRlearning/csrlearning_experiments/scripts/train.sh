@@ -89,17 +89,42 @@ parent_log_dir="../../data/outputs/debug"
 
 
 
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+#                 algorithm="cse_exact"\
+#                 algorithm.kwargs.reg=0.1\
+#                 task.init_scale=0.000001\
+#                 optimizer.kwargs.lr=.1\
+#                 task.total_steps=400000\
+#                 data.kwargs.deterministic=True\
+#                 data.kwargs.sign_flip=False\
+#                 with_logging=False\
+#                 +mlxp.logger.parent_log_dir=$parent_log_dir\
+#                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
+
+
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+#                 algorithm="ssl_exact"\
+#                 task.init_scale=0.01\
+#                 algorithm.kwargs.reg=0.00001\
+#                 optimizer.kwargs.lr=100.\
+#                 task.total_steps=400000\
+#                 data.kwargs.deterministic=True\
+#                 data.kwargs.sign_flip=False\
+#                 with_logging=False\
+#                 +mlxp.logger.parent_log_dir=$parent_log_dir\
+#                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
+
+
 TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
-                algorithm="cse_exact"\
-                algorithm.kwargs.reg=0.1\
-                task.init_scale=0.0001\
+                algorithm="unconstrained_cca"\
+                task.init_scale=0.01\
                 optimizer.kwargs.lr=.1\
-                task.total_steps=400000\
                 data.kwargs.deterministic=True\
                 data.kwargs.sign_flip=False\
-                with_logging=False\
+                task.total_steps=400000\
                 +mlxp.logger.parent_log_dir=$parent_log_dir\
                 +mlxp.version_manager.parent_work_dir=$parent_work_dir
+
 
 
 

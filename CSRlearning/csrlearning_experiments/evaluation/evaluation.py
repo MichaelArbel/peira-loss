@@ -46,7 +46,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
 
     R, S, _ = torch.linalg.svd(intra_cov)
     target_spectrum_info = data_source.info
-    spectrum, target_spectrum = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
+    spectrum_ratio = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
 
     local_alignment = compute_alignment(inter_cov, R)
 
@@ -68,12 +68,32 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
     M = sqrt_B @ W.t() @ W @ sqrt_B
     alignment = compute_alignment(M, U)
 
+    upper_bound_reg  = compute_upper_bound_reg(algorithm, target_spectrum_info)
+
+    #print(f"upper_bound_reg :{upper_bound_reg}")
+
     return SpectralMetrics(
-        spectrum=spectrum,
-        target_spectrum=target_spectrum,
+        spectrum_ratio=spectrum_ratio,
         local_alignment=local_alignment,
         alignment=alignment,
     )
+
+
+def compute_upper_bound_reg(algorithm, target_spectrum_info):
+    if isinstance(algorithm, algo_mod.UnconstrainedCCAAlgorithm):
+        return torch.inf
+    if isinstance(algorithm, algo_mod.CSEAlgorithm):
+        # |s_1s_2|/(sqrt(s_1** + sigma**2)sqrt(s_2** + sigma**2) )
+        return target_spectrum_info.inter_spectrum/target_spectrum_info.intra_spectrum_1
+
+    if isinstance(algorithm, algo_mod.SSLAlgorithm):
+        # 1/4 |s_1s_2|**2/(s_1** + sigma**2)
+        return 0.25*target_spectrum_info.inter_spectrum**2/target_spectrum_info.intra_spectrum_1
+
+
+
+
+
 
 
 def compute_algorithm_spectrum(algorithm, cov_spectrum, target_spectrum_info):

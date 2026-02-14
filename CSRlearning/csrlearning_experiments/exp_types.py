@@ -42,7 +42,6 @@ class DataInfo:
 
 @dataclass(frozen=True)
 class SpectralMetrics:
-    spectrum: torch.Tensor
-    target_spectrum: torch.Tensor
+    spectrum_ratio: torch.Tensor
     local_alignment: torch.Tensor
     alignment: torch.Tensor

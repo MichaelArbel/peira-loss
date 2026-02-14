@@ -7,11 +7,16 @@ from .objectives import (
     eckhart_young_loss,
     l2_penalty,
     linear_probe_loss,
+    exact_linear_probe_loss
 )
 
 from typing import Any, Dict
 
 from dataclasses import dataclass, field
+
+from .linalg_utils import solve_with_cholesky, add_ridge
+
+
 
 @dataclass(frozen=False)
 class AlgorithmState:
@@ -88,6 +93,13 @@ class CSEExactRegressionAlgorithm(CSEAlgorithm):
         return cse_loss(X, Y, None, self.reg)
 
 
+
+
+class SSLExactSemiGrad(SSLAlgorithm):
+    def forward(self, X, Y, state):
+        loss = exact_linear_probe_loss(X, Y, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * l2_penalty(self._weights)
+        return loss
 
 
 
@@ -334,6 +346,11 @@ class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
             T_max=T_max,
             **kwargs
         )
+
+
+
+
+
 
 
 

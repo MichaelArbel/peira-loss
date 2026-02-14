@@ -8,7 +8,7 @@ import torch.nn as nn
 from csrlearning_experiments.evaluation.evaluation import compute_alignment
 from csrlearning_experiments.factory import instantiate, build_optimizer_bundle
 from csrlearning_experiments.training.pipeline import encode
-from csrlearning_experiments.evaluation.evaluation import compute_spectral_metrics
+from csrlearning_experiments.evaluation.evaluation import compute_spectral_metrics, compute_upper_bound_reg
 from csrlearning_experiments.utils.utils import set_seed, compute_running_average
 from pprint import pprint
 
@@ -147,7 +147,10 @@ class CCAExperimentRunner:
                 for k, v in self.loader.info.items()
             }
             self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
+        
+
         for step in range(self.cfg.total_steps):
+        
             with torch.no_grad():
                 spectral_metrics = compute_spectral_metrics(
                     self.encoders,
@@ -220,15 +223,16 @@ class Tracker:
         return metrics, artifact_dict
 
     def track_spectral_metrics(self,metrics, step, with_artifacts=False):
-        spectral_metrics = {"singval": [metrics.spectrum[0].item(), metrics.spectrum[1].item()],
-                            "target_singval": [metrics.target_spectrum[0].item(), metrics.target_spectrum[1].item()],
-                            "align": [metrics.alignment[0].item(), metrics.alignment[1].item()],
-                            "local_align": [metrics.local_alignment[0].item(), metrics.local_alignment[1].item()],
+        k = 4
+
+        spectral_metrics = {"singval_ratio": [metrics.spectrum_ratio[i].item() for i in range(k)],
+                            "align": [metrics.alignment[i].item() for i in range(k)],
+                            "local_align": [metrics.local_alignment[i].item() for i in range(k)],
                             }
         if with_artifacts:
             artifact_dict = {
                             "alignment": metrics.alignment.cpu().numpy(),
-                            "spectrum": metrics.spectrum.cpu().numpy(),
+                            "spectrum_ratio": metrics.spectrum_ratio.cpu().numpy(),
                             "local_aligment": metrics.local_alignment.cpu().numpy(),
                             "iter" : step
                             }

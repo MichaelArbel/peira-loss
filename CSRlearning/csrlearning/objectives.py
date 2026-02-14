@@ -1,5 +1,5 @@
 import torch
-from .linalg_utils import PDInverse, add_ridge
+from .linalg_utils import PDInverse, add_ridge, solve_with_cholesky
 
 
 
@@ -57,6 +57,16 @@ def cse_loss(X: torch.Tensor, Y: torch.Tensor, P: torch.Tensor, reg: float):
     else:
         return - 0.5 * torch.trace(P) + reg_loss
 
+
+def exact_linear_probe_loss(X: torch.Tensor, Y: torch.Tensor, reg: float, symmetric=False):
+    with torch.no_grad():
+        B = X.shape[0]
+        inter_cov = torch.einsum("mk,ml->kl", Y, X) / B
+        intra_cov = torch.einsum("mk,ml->kl", X, X) / B
+        pred = solve_with_cholesky(inter_cov, add_ridge(intra_cov, reg))
+
+    loss = linear_probe_loss(X, Y, pred.detach(), reg, symmetric=symmetric)
+    return loss
 
 
 
