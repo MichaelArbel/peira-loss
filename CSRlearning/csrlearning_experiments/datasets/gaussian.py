@@ -39,20 +39,19 @@ class LinearCCADataGenerator:
             dtype,
             sign_flip=self.sign_flip,
         )
-        if self.deterministic:
-            b = self.batch_size if batch_size is None else batch_size
-            if self.empirical:
-                z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
-                eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
-                eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
-            else:
-                z, eps_1, eps_2 = generate_deterministic_data(
-                    b=b,
-                    d=[self.k, self.d1, self.d2],
-                    device=self.device,
-                    dtype=self.dtype,
-                )
-            self.data = self.gen_data(z, eps_1, eps_2)
+        b = self.batch_size if batch_size is None else batch_size
+        if self.empirical:
+            z = torch.randn(b, self.k, device=self.device, dtype=self.dtype, generator=self.rng)
+            eps_1 = torch.randn(b, self.d1, device=self.device, dtype=self.dtype, generator=self.rng)
+            eps_2 = torch.randn(b, self.d2, device=self.device, dtype=self.dtype, generator=self.rng)
+        else:
+            z, eps_1, eps_2 = generate_deterministic_data(
+                b=b,
+                d=[self.k, self.d1, self.d2],
+                device=self.device,
+                dtype=self.dtype,
+            )
+        self.data = self.gen_data(z, eps_1, eps_2)
 
 
         #self.A1 = torch.randn(k, d1, device=device, dtype=dtype)

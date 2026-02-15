@@ -7,7 +7,8 @@ from .objectives import (
     eckhart_young_loss,
     l2_penalty,
     linear_probe_loss,
-    exact_linear_probe_loss
+    exact_linear_probe_loss,
+    eckhart_young_sto_loss
 )
 
 from typing import Any, Dict
@@ -45,10 +46,7 @@ class BaseAlgorithm(nn.Module):
         raise NotImplementedError
 
     def update_internal_state(self, X,Y) -> AlgorithmState:
-        return AlgorithmState(
-            extras={"consumed_batches": 0},
-            stop_grad=self.stop_grad,
-        )
+        return self.get_internal_state()
     def get_internal_state(self):
         return AlgorithmState(
             extras={"consumed_batches": 0},
@@ -61,6 +59,13 @@ class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
     def forward(self, X, Y, state):
         return eckhart_young_loss(X, Y)
+
+
+class EYStoAlgorithm(UnconstrainedCCAAlgorithm):
+
+    def forward(self, X, Y, state):
+        return eckhart_young_sto_loss(X, Y)
+
 
 class CSEAlgorithm(BaseAlgorithm):
     def __init__(self, reg, **kwargs):
@@ -140,9 +145,8 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         assert self.n_iter>0
         return self.n_iter
 
-    def update_internal_state(self, X,Y) -> AlgorithmState:
-        state = super().update_internal_state(X,Y)
-        self.pred = self.regressor(X.detach(), Y.detach())
+    def get_internal_state(self):
+        state = super().get_internal_state()
         consumed = 1
         state.extras["consumed_batches"] = consumed
 
@@ -152,6 +156,11 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         else:
             state.pred = self.pred
         return state
+
+    def update_internal_state(self, X,Y) -> AlgorithmState:
+        self.pred = self.regressor(X.detach(), Y.detach())
+        return self.get_internal_state()
+        
 
 
 class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
@@ -184,7 +193,7 @@ class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
     def configure(self, encoders):
         return [(self.regressor.optimizer, self.regressor.scheduler)]
 
-    def update_internal_state(self, X,Y) -> AlgorithmState:
+    def get_internal_state(self, X,Y) -> AlgorithmState:
         return AlgorithmState(extras={"consumed_batches": 0}, stop_grad=self.stop_grad)
 
 

@@ -80,5 +80,26 @@ def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
     return -4.0 * inter_cov + intra_cov
 
 
+def eckhart_young_sto_loss(X: torch.Tensor, Y: torch.Tensor):
+    B = X.shape[0]
+    inter_cov = torch.einsum("mk,mk->", X, Y) / B
+    X1, X2 = torch.tensor_split(X, 2, dim=0)
+    Y1, Y2 = torch.tensor_split(Y, 2, dim=0)
+
+    cov_u1 = torch.einsum("mk,ml->kl", X1, X1) / X1.shape[0]
+    cov_v1 = torch.einsum("mk,ml->kl", Y1, Y1) / Y1.shape[0]
+
+    cov_u2 = torch.einsum("mk,ml->kl", X2, X2) / X2.shape[0]
+    cov_v2 = torch.einsum("mk,ml->kl", Y2, Y2) / Y2.shape[0]
+
+
+    intra_cov = torch.sum((cov_u1 + cov_v1) * (cov_u2 + cov_v2))
+
+    return -4.0 * inter_cov + intra_cov
+
+
+
+
+
 
 

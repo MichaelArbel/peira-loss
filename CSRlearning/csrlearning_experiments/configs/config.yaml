@@ -21,8 +21,8 @@ device: "cpu"          # or "cpu"
 type: "double"
 with_logging: True
 with_scheduler: True
-
-
+stop_when_completed: False
+eval_on_determinisitc: False
 
 # Data Generation Parameters
 data:
@@ -58,6 +58,6 @@ optimizer:
 
 scheduler:
   name: "torch.optim.lr_scheduler.CosineAnnealingLR"
-  kwargs:
-    T_max: ${task.total_steps}
-    eta_min: 0.000001
+  kwargs: {}
+    #T_max: ${task.total_steps}
+    #eta_min: 0.0

@@ -18,9 +18,9 @@ def compute_cse_spectrum(covariance_spectrum, target_spectrum, reg):
     spectrum_ratio = torch.where(
             mask,
             covariance_spectrum/target_spectrum_padded,
-            torch.zeros_like(covariance_spectrum, dtype=torch.float64)
+            covariance_spectrum
         )
-
+    #print(lol)
     return spectrum_ratio
 
 
@@ -90,8 +90,9 @@ def compute_semigrad_spectrum(covariance_spectrum, full_target_spectrum, reg):
     spectrum_ratio = torch.where(
             mask,
             covariance_spectrum/target_spectrum,
-            torch.zeros_like(covariance_spectrum, dtype=torch.float64)
+            covariance_spectrum
         )
+    #print(lol)
     return spectrum_ratio#, torch.ones_like(spectrum_ratio)
 
 
@@ -111,7 +112,7 @@ def compute_unconstrained_cca_spectrum(covariance_spectrum, target_spectrum):
     spectrum_ratio = torch.where(
             target_spectrum_padded>0.,
             covariance_spectrum/target_spectrum_padded,
-            torch.zeros_like(covariance_spectrum, dtype=torch.float64)
+            covariance_spectrum
         )
 
 

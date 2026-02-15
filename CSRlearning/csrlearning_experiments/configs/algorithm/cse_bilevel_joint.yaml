@@ -1,7 +1,7 @@
 name: "csrlearning.algorithms.CSEBilevelStoGradJoint"
 kwargs:
   latent_dim: ${latent_dim}
-  reg: 0.1
+  reg: 0.4
   lr: 0.1
   T_max: 20000
   ema: 1.

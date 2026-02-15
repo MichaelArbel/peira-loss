@@ -2,6 +2,6 @@ name: "csrlearning.algorithms.CSEBilevelStoGrad"
 kwargs:
   n_iter: 1
   latent_dim: ${latent_dim}
-  reg: 0.1
+  reg: 0.4
   lr: 0.1
   T_max: ${task.total_steps}

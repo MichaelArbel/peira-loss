@@ -7,6 +7,10 @@ from csrlearning_experiments.evaluation.spectra import (
     compute_unconstrained_cca_spectrum,
 )
 from csrlearning import algorithms as algo_mod
+from csrlearning.objectives import eckhart_young_loss, cse_loss, exact_linear_probe_loss, l2_penalty
+
+
+
 
 def compute_alignment(M, U, B=None):
     # 4. Compute Alignment: cosine_sim(u_i, M u_i)
@@ -49,13 +53,16 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
     spectrum_ratio = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
 
     local_alignment = compute_alignment(inter_cov, R)
+    params_1 = [param for param in encoders[0].parameters()]
+    params_2 = [param for param in encoders[1].parameters()]
 
     if tied_encoders:
-        W = encoders[0].weight
+
+        W = params_1[0]
         B = target_spectrum_info.cov_1
         U = target_spectrum_info.singular_vectors_1
     else:
-        W = torch.cat([encoders[0].weight, encoders[1].weight], dim=1)
+        W = torch.cat([params_1[0], params_2[0]], dim=1)
         B = torch.block_diag(target_spectrum_info.cov_1, target_spectrum_info.cov_2)
         U = torch.cat(
             [target_spectrum_info.singular_vectors_1, target_spectrum_info.singular_vectors_2],
@@ -84,7 +91,7 @@ def compute_upper_bound_reg(algorithm, target_spectrum_info):
         return torch.inf
     if isinstance(algorithm, algo_mod.CSEAlgorithm):
         # |s_1s_2|/(sqrt(s_1** + sigma**2)sqrt(s_2** + sigma**2) )
-        return target_spectrum_info.inter_spectrum/target_spectrum_info.intra_spectrum_1
+        return torch.sqrt(target_spectrum_info.inter_spectrum/target_spectrum_info.intra_spectrum_1) 
 
     if isinstance(algorithm, algo_mod.SSLAlgorithm):
         # 1/4 |s_1s_2|**2/(s_1** + sigma**2)
@@ -93,8 +100,15 @@ def compute_upper_bound_reg(algorithm, target_spectrum_info):
 
 
 
-
-
+def compute_deterministic_loss(algorithm, X,Y, state):
+    if isinstance(algorithm, algo_mod.UnconstrainedCCAAlgorithm):
+        return eckhart_young_loss(X,Y)
+    if isinstance(algorithm, algo_mod.CSEAlgorithm):
+        return cse_loss(X,Y, None, algorithm.reg)
+    if isinstance(algorithm, algo_mod.SSLAlgorithm):
+        loss = exact_linear_probe_loss(X, Y, algorithm.reg, symmetric=False)
+        loss = loss + 0.5 * algorithm.reg * l2_penalty(algorithm._weights)
+        return loss
 
 def compute_algorithm_spectrum(algorithm, cov_spectrum, target_spectrum_info):
     if isinstance(algorithm, algo_mod.UnconstrainedCCAAlgorithm):
