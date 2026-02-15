@@ -18,7 +18,7 @@ def instantiate(module_name):
 
 
 
-def build_optimizer_bundle(encoders, tied_encoders, optimizer_spec, scheduler_spec):
+def build_optimizer_bundle(encoders, tied_encoders, optimizer_spec, scheduler_spec, with_scheduler=True):
     from csrlearning_experiments.training.optimizer_bundle import OptimizerBundle
 
     first_encoder = encoders[0]
@@ -27,16 +27,19 @@ def build_optimizer_bundle(encoders, tied_encoders, optimizer_spec, scheduler_sp
             encoders[i] = first_encoder
 
     optimizer_ctor = lambda params: instantiate(optimizer_spec.name)(params, **optimizer_spec.kwargs)
-    scheduler_ctor = lambda optimizer: instantiate(scheduler_spec.name)(
-        optimizer, **scheduler_spec.kwargs)
-
+    if with_scheduler:
+        scheduler_ctor = lambda optimizer: instantiate(scheduler_spec.name)(
+            optimizer, **scheduler_spec.kwargs)
+    else:
+        scheduler_ctor = None
     if not tied_encoders:
         optimizers = [optimizer_ctor(encoder.parameters()) for encoder in encoders]
     else:
         optimizers = [optimizer_ctor(first_encoder.parameters())]
-
-    schedulers = [scheduler_ctor(opt) for opt in optimizers]
-
+    if with_scheduler:
+        schedulers = [scheduler_ctor(opt) for opt in optimizers]
+    else:
+        schedulers = len(optimizers)*[None]
     bundle = OptimizerBundle()
     for opt, sch in zip(optimizers, schedulers):
         bundle.add(opt, sch)

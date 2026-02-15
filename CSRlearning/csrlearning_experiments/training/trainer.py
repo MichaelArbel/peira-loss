@@ -81,6 +81,7 @@ class CCAExperimentRunner:
             self.tied_encoders,
             cfg.optimizer,
             cfg.scheduler,
+            self.with_scheduler
         )
 
 
@@ -210,9 +211,8 @@ class CCAExperimentRunner:
             }
             self.logger.log_artifacts(info, "data_info", artifact_type="pickle")
         
-
+        start_time = time.time()
         for step in range(self.cfg.total_steps):
-        
             with torch.no_grad():
                 if step>self.burn_in+1 and self.use_swa_model:
                     encoders = self.avg_encoders
@@ -264,7 +264,10 @@ class CCAExperimentRunner:
 
             if np.mod(step, 100) == 0:
                 pprint(metrics)
-
+                
+                end_time = time.time()
+                print(f"time per 100 steps: {end_time-start_time}")
+                start_time = end_time
 
 
 class Tracker:
