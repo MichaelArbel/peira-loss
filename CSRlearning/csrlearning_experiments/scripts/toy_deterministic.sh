@@ -1,17 +1,14 @@
 #!/bin/bash
 
-#SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1:10:00
-#SBATCH --account=jsc@a100
-#SBATCH --constraint=a100
+#SBATCH --account=jsc@cpu
 #SBATCH --hint=nomultithread
 #SBATCH --open-mode=append
 
 # module purge
-# module load arch/a100
 # module load pytorch-gpu/py3/2.5.0
 
 
