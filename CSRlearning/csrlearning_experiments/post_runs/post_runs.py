@@ -6,22 +6,24 @@ from viz import filter_runs, plot_method_standalone_figures
 
 
 # Path to the directory containing experiment runs.
-PATH = os.environ.get("CSR_RESULTS_PATH", "data/outputs/deterministic_9")
+PATH = "../../../data/outputs/deterministic/"
 
 # Where figures are saved.
-FIGURES_DIR = os.environ.get("CSR_FIGURES_DIR", "../figures")
+FIGURES_DIR = "../../../figures"
 
 # Keep only this initialization scale.
-INIT_SCALE = float(os.environ.get("CSR_INIT_SCALE", "1e-4"))
+INIT_SCALE = "0.000001"
 
 # For ssl_exact only, keep this optimizer learning rate.
-SSL_EXACT_LR = float(os.environ.get("CSR_SSL_EXACT_LR", "10"))
+SSL_EXACT_LR = "10"
 
 
 def main():
     # Start with complete runs from mlxp metadata.
-    query = "info.status=='COMPLETE'"
-    results = mlxp.Reader(PATH).filter(query_string=query)
+    query = "info.status=='COMPLETE' | config.algorithm.name=='cse_exact'"
+    results = mlxp.Reader(PATH, refresh=False).filter(query_string=query)
+
+
 
     # Enforce requested filtering:
     # - single init scale
@@ -38,7 +40,7 @@ def main():
         raise RuntimeError(
             f"No runs matched filters: init_scale={INIT_SCALE}, ssl_exact_lr={SSL_EXACT_LR}"
         )
-
+    print(lol)
     plot_method_standalone_figures(filtered_rows, figures_dir=FIGURES_DIR)
 
 
