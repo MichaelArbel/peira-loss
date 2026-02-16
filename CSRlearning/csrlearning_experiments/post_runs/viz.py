@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as patches
 import matplotlib as mpl
+from typing import Optional
 superscripts = {
     "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
     "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
@@ -25,6 +26,120 @@ def _method_key(df):
     if "config.learner.kwargs.algorithm_name" in df.columns:
         return "config.learner.kwargs.algorithm_name"
     return "config.learner.name"
+
+
+def _to_rows(df_or_rows):
+    """Normalize mlxp result containers to a plain row list."""
+    if isinstance(df_or_rows, list):
+        return df_or_rows
+    return [row for row in df_or_rows]
+
+
+def _safe_get(row, key, default=None):
+    try:
+        return row[key]
+    except (KeyError, TypeError):
+        return default
+
+
+def _is_close(a, b, rtol=1e-12, atol=1e-12):
+    try:
+        return np.isclose(float(a), float(b), rtol=rtol, atol=atol)
+    except (TypeError, ValueError):
+        return False
+
+
+def _row_method(row):
+    method = _safe_get(row, "config.learner.kwargs.algorithm_name")
+    if method is None:
+        method = _safe_get(row, "config.learner.name")
+    if method is None:
+        method = _safe_get(row, "config.algorithm")
+    if method is None:
+        method = "unknown_method"
+    return str(method)
+
+
+def _is_ssl_exact_row(row):
+    candidates = [
+        _safe_get(row, "config.algorithm", ""),
+        _safe_get(row, "config.learner.name", ""),
+        _safe_get(row, "config.learner.kwargs.algorithm_name", ""),
+    ]
+    candidates = [str(c).lower() for c in candidates]
+    return any(("ssl_exact" in c) or ("semigradientssl" in c) for c in candidates)
+
+
+def _is_successful_row(row):
+    status_keys = [
+        "info.status",
+        "info.mlxp.status",
+        "mlxp.status",
+    ]
+    success_keys = [
+        "info.succeeded",
+        "info.mlxp.succeeded",
+        "mlxp.succeeded",
+    ]
+    for key in success_keys:
+        value = _safe_get(row, key)
+        if value is not None:
+            return bool(value)
+    for key in status_keys:
+        value = _safe_get(row, key)
+        if value is not None:
+            return str(value).upper() in {"COMPLETE", "SUCCEEDED", "SUCCESS"}
+    return True
+
+
+def _row_id(row, fallback="run"):
+    for key in ("info.id", "info.run_id", "mlxp.id", "info.uid"):
+        value = _safe_get(row, key)
+        if value is not None:
+            return str(value)
+    return fallback
+
+
+def _sanitize_filename(name):
+    out = []
+    for ch in str(name):
+        if ch.isalnum() or ch in ("_", "-", "."):
+            out.append(ch)
+        else:
+            out.append("_")
+    return "".join(out)
+
+
+def filter_runs(
+    df_or_rows,
+    init_scale: Optional[float] = None,
+    ssl_exact_lr: Optional[float] = 10.0,
+    require_ssl_exact_success: bool = True,
+):
+    """
+    Filter deterministic runs using requested constraints:
+    - keep a single `config.task.init_scale` when provided.
+    - for ssl_exact only: keep `optimizer.kwargs.lr == ssl_exact_lr`.
+    - for ssl_exact only: keep succeeded runs when requested.
+    """
+    rows = _to_rows(df_or_rows)
+    filtered = []
+    for row in rows:
+        row_init_scale = _safe_get(row, "config.task.init_scale")
+        if (init_scale is not None) and (not _is_close(row_init_scale, init_scale)):
+            continue
+
+        if _is_ssl_exact_row(row):
+            row_lr = _safe_get(row, "config.optimizer.kwargs.lr")
+            if row_lr is None:
+                row_lr = _safe_get(row, "config.optimizer.lr")
+            if (ssl_exact_lr is not None) and (not _is_close(row_lr, ssl_exact_lr)):
+                continue
+            if require_ssl_exact_success and (not _is_successful_row(row)):
+                continue
+
+        filtered.append(row)
+    return filtered
 
 
 def save_and_show(filename='latest_plot', figures_dir="figures"):
@@ -536,4 +651,157 @@ def _plot_spectral_stack(df_group, methods, init_scales, method_label, figures_d
         save_and_show(f'{data}_image_{method_label.get(method, method)}', figures_dir= figures_dir)
 
 
+def plot_run_spectral_stack(
+    row,
+    figures_dir,
+    data="spectrum",
+    filename=None,
+    vmin=None,
+    vmax=None,
+    percent_max_iter=1.0,
+    percent_target=0.05,
+):
+    """
+    Plot spectrum/alignment evolution for a single run, as a standalone figure.
+    """
+    history = get_history(row)
+    if data not in history:
+        raise KeyError(f"'{data}' is not available in history.")
 
+    values = history[data]
+    max_iter = max(1, int(values.shape[0] * percent_max_iter))
+    values = values[:max_iter, :]
+    evolution = values.T
+    timesteps = history["timesteps"][:max_iter].copy()
+    timesteps[timesteps == 0] = 1e-1
+
+    offset = 0
+    if data == "spectrum":
+        target = history["target_spectrum"][: evolution.shape[0]].reshape(-1, 1)
+        offset = max(1, int(percent_target * evolution.shape[1]))
+        target_block = np.tile(target, (1, offset))
+        evolution = np.hstack([evolution, target_block])
+
+    if data == "spectrum":
+        vmin = 1e-6 if vmin is None else vmin
+        vmax = 10.0 if vmax is None else vmax
+        norm = mcolors.LogNorm(vmin=vmin, vmax=vmax)
+        title = "Spectral Evolution"
+        cbar_label = "Spectrum magnitude"
+    else:
+        vmin = 0.0 if vmin is None else vmin
+        vmax = 1.0 if vmax is None else vmax
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+        title = "Alignment Evolution"
+        cbar_label = "Alignment magnitude"
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    img = ax.imshow(
+        np.clip(evolution, vmin, vmax),
+        aspect="auto",
+        cmap="magma",
+        norm=norm,
+        extent=[0, len(timesteps) + offset, 0, evolution.shape[0]],
+        interpolation="nearest",
+    )
+
+    if data == "spectrum":
+        rect = patches.Rectangle(
+            (len(timesteps), 0),
+            offset,
+            evolution.shape[0],
+            linewidth=2,
+            edgecolor="yellow",
+            facecolor="none",
+            zorder=10,
+        )
+        ax.add_patch(rect)
+        ax.text(
+            len(timesteps) + max(0.2, offset / 2),
+            evolution.shape[0] * 1.02,
+            "Target",
+            color="black",
+            fontweight="bold",
+            ha="center",
+            fontsize=11,
+        )
+
+    method = _row_method(row)
+    ax.set_xlabel("Training iterations", fontsize=12)
+    ax.set_ylabel("Index", fontsize=12)
+    ax.set_title(f"{title}: {method}", fontsize=13)
+    cbar = fig.colorbar(img, ax=ax, aspect=25, pad=0.02)
+    cbar.set_label(cbar_label, size=11)
+    cbar.ax.tick_params(labelsize=10)
+    plt.tight_layout()
+
+    if filename is None:
+        run_id = _row_id(row)
+        filename = f"{data}_image_{_sanitize_filename(method)}_{_sanitize_filename(run_id)}"
+    save_and_show(filename, figures_dir=figures_dir)
+    plt.close(fig)
+
+
+def plot_run_grad_norm(row, figures_dir, filename=None):
+    """
+    Plot gradient norm vs iterations for a single run.
+    """
+    grad_norm = np.array(_safe_get(row, "metrics.running_grad_norm", []))
+    iters = np.array(_safe_get(row, "metrics.iter", []))
+    if len(grad_norm) == 0 or len(iters) == 0:
+        raise ValueError("Run is missing 'metrics.running_grad_norm' or 'metrics.iter'.")
+
+    fig, ax = plt.subplots(figsize=(4.5, 3.2))
+    ax.plot(iters, grad_norm, color="#1f77b4", lw=1.2)
+    ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=12)
+    ax.set_xlabel("Training iterations", fontsize=12)
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.set_ylim(bottom=1e-10, top=1e0)
+    ax.grid(True, which="both", linestyle=":", alpha=0.4)
+
+    method = _row_method(row)
+    ax.set_title(method, fontsize=12, pad=10)
+    plt.tight_layout()
+
+    if filename is None:
+        run_id = _row_id(row)
+        filename = f"grad_norm_{_sanitize_filename(method)}_{_sanitize_filename(run_id)}"
+    save_and_show(filename, figures_dir=figures_dir)
+    plt.close(fig)
+
+
+def plot_method_standalone_figures(rows, figures_dir):
+    """
+    For each method, generate standalone figures for:
+    - spectrum evolution
+    - alignment evolution
+    - gradient norm vs iterations
+    Uses one representative run per method (first row in that group).
+    """
+    rows = _to_rows(rows)
+    method_to_rows = {}
+    for row in rows:
+        method = _row_method(row)
+        method_to_rows.setdefault(method, []).append(row)
+
+    for method, method_rows in method_to_rows.items():
+        row = method_rows[0]
+        method_slug = _sanitize_filename(method)
+        plot_run_spectral_stack(
+            row,
+            figures_dir=figures_dir,
+            data="spectrum",
+            filename=f"spectrum_image_{method_slug}",
+        )
+        plot_run_spectral_stack(
+            row,
+            figures_dir=figures_dir,
+            data="alignment",
+            filename=f"alignment_image_{method_slug}",
+        )
+        plot_run_grad_norm(
+            row,
+            figures_dir=figures_dir,
+            filename=f"grad_norm_{method_slug}",
+        )
