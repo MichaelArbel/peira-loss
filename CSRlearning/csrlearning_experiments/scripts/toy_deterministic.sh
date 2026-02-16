@@ -13,7 +13,7 @@
 
 
 parent_work_dir="../../data/.workdir"
-parent_log_dir="../../data/outputs/deterministic_1"
+parent_log_dir="../../data/outputs/deterministic_2"
 
 
 

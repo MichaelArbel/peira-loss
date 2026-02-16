@@ -50,7 +50,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
 
     R, S, _ = torch.linalg.svd(intra_cov)
     target_spectrum_info = data_source.info
-    spectrum_ratio = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
+    spectrum_ratio, target_ratio = compute_algorithm_spectrum(algorithm, S, target_spectrum_info)
 
     local_alignment = compute_alignment(inter_cov, R)
     params_1 = [param for param in encoders[0].parameters()]
@@ -83,6 +83,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
         spectrum_ratio=spectrum_ratio,
         local_alignment=local_alignment,
         alignment=alignment,
+        target_ratio=target_ratio,
     )
 
 

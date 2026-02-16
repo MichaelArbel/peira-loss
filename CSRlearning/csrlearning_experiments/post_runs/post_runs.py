@@ -2,7 +2,7 @@ import os
 
 import mlxp
 
-from viz import filter_runs, plot_method_standalone_figures
+from viz import plot_method_standalone_figures
 
 
 # Path to the directory containing experiment runs.
@@ -32,19 +32,8 @@ def main():
     # - single init scale
     # - ssl_exact only with lr=10
     # - ssl_exact only successful/not failed (when success field is present)
-    filtered_rows = filter_runs(
-        results,
-        init_scale=INIT_SCALE,
-        ssl_exact_lr=SSL_EXACT_LR,
-        require_ssl_exact_success=True,
-    )
 
-    if len(filtered_rows) == 0:
-        raise RuntimeError(
-            f"No runs matched filters: init_scale={INIT_SCALE}, ssl_exact_lr={SSL_EXACT_LR}"
-        )
-    print(lol)
-    plot_method_standalone_figures(filtered_rows, figures_dir=FIGURES_DIR)
+    plot_method_standalone_figures(results, figures_dir=FIGURES_DIR)
 
 
 if __name__ == "__main__":

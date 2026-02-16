@@ -45,3 +45,4 @@ class SpectralMetrics:
     spectrum_ratio: torch.Tensor
     local_alignment: torch.Tensor
     alignment: torch.Tensor
+    target_ratio: torch.Tensor

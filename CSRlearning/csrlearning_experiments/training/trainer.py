@@ -313,9 +313,10 @@ class Tracker:
         spectral_metrics = {"singval_ratio": [metrics.spectrum_ratio[i].item() for i in range(k)],
                             "align": [metrics.alignment[i].item() for i in range(k)],
                             "local_align": [metrics.local_alignment[i].item() for i in range(k)],
+                            "target_ratio": [metrics.target_ratio[i].item() for i in range(k)],
                             }
         if with_artifacts:
-            artifact_dict = {
+            artifact_dict = {"target_ratio": metrics.target_ratio.cpu().numpy(),
                             "alignment": metrics.alignment.cpu().numpy(),
                             "spectrum_ratio": metrics.spectrum_ratio.cpu().numpy(),
                             "local_aligment": metrics.local_alignment.cpu().numpy(),
