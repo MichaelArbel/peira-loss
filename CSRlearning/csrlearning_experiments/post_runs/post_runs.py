@@ -20,7 +20,10 @@ SSL_EXACT_LR = "10"
 
 def main():
     # Start with complete runs from mlxp metadata.
-    query = "info.status=='COMPLETE' | config.algorithm.name=='cse_exact'"
+    query = "info.status=='COMPLETE' & config.task.init_scale==0.000001"
+    query_ssl  = "config.algorithm.name=='csrlearning.algorithms.SSLExactSemiGrad' & config.optimizer.kwargs.lr==10"
+    query_non_ssl = "config.algorithm.name!='csrlearning.algorithms.SSLExactSemiGrad'"
+    total_query = "("+query + ") & ( (" +  query_ssl + ") | (" + query_non_ssl+") )"
     results = mlxp.Reader(PATH, refresh=False).filter(query_string=query)
 
 
