@@ -462,7 +462,6 @@ def plot_run_grad_norm(df, method_label, figures_dir, filename=None):
         iters = np.array(row['metrics.iter'])
         color = cmap(norm(scale))
         ax.plot(iters[::step], grad_norm[::step], color=color, lw=1, alpha=1.)
-        break
     fontsize = 12
     ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=fontsize)
     ax.set_xlabel("Training iterations", fontsize=fontsize)
@@ -533,4 +532,3 @@ def plot_method_standalone_figures(df, figures_dir):
             figures_dir=figures_dir,
             filename=f"grad_norm_",
         )
-        break
