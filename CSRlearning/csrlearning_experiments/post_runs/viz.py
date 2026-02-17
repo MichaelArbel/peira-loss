@@ -77,6 +77,71 @@ def save_and_show(filename='latest_plot', figures_dir="figures"):
     # 2. Display in terminal
     imgcat(open(name+'.png', 'rb').read())
 
+
+
+def get_history(row, step=10000):
+    import re
+
+    # 1. Get all keys
+    all_keys = row['artifact.pickle.'].keys()
+
+    # 2. Extract and parse keys starting with 'alignments_'
+    # We split by '_' and take the last part, converting it to an int
+    alignments_indices = {
+        int(k.split('_')[-1]): k 
+        for k in all_keys if k.startswith('alignments_')
+    }
+
+    # 3. Sort by iteration number to ensure chronological order
+    sorted_iterations = sorted(alignments_indices.keys())
+    history = {'alignment': [],
+                'spectrum': [],
+                'timesteps': []}
+    # Example usage:
+
+    for i in sorted_iterations:
+        #if np.mod(i,step)==0:
+        key = alignments_indices[i]
+        data = row['artifact.pickle.'][key].load()
+        history['alignment'].append(data['alignment'])
+        history['spectrum'].append(data['spectrum_ratio'])
+        history['timesteps'].append(i)
+        # print(f"Iteration {i}: {data}")
+
+    history['alignment'] = np.array(history['alignment'])
+    history['spectrum'] = np.array(history['spectrum'])
+    history['timesteps'] = np.array(history['timesteps'])
+
+    spectrum = np.zeros_like(history['alignment'])
+    min_shape = min(history['alignment'].shape[1], history['spectrum'].shape[1])
+    spectrum[:,:min_shape] = history['spectrum'][:,:min_shape]
+    history['spectrum'] = spectrum
+    # Assign the original values to the first two slots
+    #history['target_spectrum'] = data['target_ratio']
+    history['target_spectrum'] = np.ones(history['alignment'].shape[1])#data['target_ratio']
+    history['target_spectrum'][4:] = 0.
+    return history
+
+def heatmap_log(full_heatmap, x):
+    if np.any(x <= 0):
+    # common pragmatic choice:
+        x = x - x.min() + 1.0
+
+    N, T = full_heatmap.shape
+
+    # choose how many columns you want in the log-resampled image (often same as T)
+    T_log = T
+
+    # log-spaced x grid covering same range
+    x_log = np.exp(np.linspace(np.log(x[0]), np.log(x[-1]), T_log))
+
+    # resample each row using 1D linear interpolation
+    heatmap_log = np.empty((N, T_log), dtype=float)
+    for i in range(N):
+        heatmap_log[i] = np.interp(x_log, x, full_heatmap[i])
+    return heatmap_log, x_log
+
+
 def add_arrows(s1, s2, axis, arrow_steps, n_points, color, fixed_pixel_length=0.01):
     for idx in arrow_steps:
         if idx + 1 < n_points:  # Ensure we have a "next" point to calculate direction
@@ -116,16 +181,22 @@ def add_arrows(s1, s2, axis, arrow_steps, n_points, color, fixed_pixel_length=0.
                                  zorder=20)
 
 
-def plot_phase_portrait(df, figures_dir="figures"):
+def plot_phase_portrait(
+    df,
+    figures_dir,
+    data="spectrum",
+    filename=None,
+    vmin=1e-4, 
+    vmax=1.):
     # 1. Setup the figure
-    fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+    fig, axes = plt.subplots(1, 1, figsize=(4, 4))
     
     # Use standard grouping
     method_key = _method_key(df)
     df_group = df.groupby([method_key])
     methods = [key[0] for key in df_group.keys()]
     colors = ['#1f77b4', '#ff7f0e'] 
-    heatmaps = [plt.cm.Blues, plt.cm.Oranges]
+    heatmaps = [plt.cm.Blues, plt.cm.Oranges, plt.cm.Reds]
     method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
     method_color_map_heat = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     legend_handles = []
@@ -141,16 +212,12 @@ def plot_phase_portrait(df, figures_dir="figures"):
         all_s1, all_s2 = [], []
         all_grads = []
         all_iters = []
-
+        metric = 'metrics.singval_ratio'
         for row in method_df:
             # Data extraction
-            a1, a2 = np.array(row['metrics.align_1']), np.array(row['metrics.align_2'])
-            s1, s2 = np.array(row['metrics.singval_1']), np.array(row['metrics.singval_2'])
-            iters = np.array(row['metrics.iter'])
-            grad_norm = np.array(row['metrics.running_grad_norm'])
 
-            axes[0].plot(a1, a2, color=color, lw=1,alpha=1.)
-            axes[1].plot(s1, s2, color=color, lw=1,alpha=1.)
+            data = row[metric]
+            axes.plot(data[0], data[1], color=color, lw=1,alpha=1.)
 
 
                 # --- Add Directional Arrows ---
@@ -158,22 +225,17 @@ def plot_phase_portrait(df, figures_dir="figures"):
             # We use a subset of indices to avoid clutter
             n_points = len(s1)
             arrow_steps = [3, 10, 100]
-            add_arrows(s1, s2, axes[1], arrow_steps,  n_points, color,fixed_pixel_length=0.01)
-            add_arrows(a1, a2, axes[0], arrow_steps, n_points, color, fixed_pixel_length=0.01)
+            add_arrows(data[0], data[1], axes, arrow_steps, n_points, color, fixed_pixel_length=0.01)
 
             # Plot individual trajectories with high transparency
             #line, = axes[0].plot(a1, a2, color=color, lw=1.)
             #axes[1].plot(s1, s2, color=color, lw=1.)
 
-            line, = axes[2].plot(iters, grad_norm, color=color, lw=1,alpha=1.)
-
             # Store for averaging (assuming same lengths, or interpolate if needed)
 
             # Start and End Markers for individual runs
-            axes[0].scatter(a1[0], a2[0], color='black', s=15, marker='o')
-            axes[0].scatter(a1[-1], a2[-1], color=color, s=25, marker='x')
-            axes[1].scatter(s1[0], s2[0], color='black', s=15, marker='o')
-            axes[1].scatter(s1[-1], s2[-1], color=color, s=25, marker='x')
+            axes.scatter(data[0][0], data[1][0], color='black', s=15, marker='o')
+            axes.scatter(data[0][-1], data[1][-1], color=color, s=25, marker='x')
 
         # # Add this after you've added the collections to the axes
         # sm = plt.cm.ScalarMappable(cmap=cmap_name, norm=norm)
@@ -181,38 +243,26 @@ def plot_phase_portrait(df, figures_dir="figures"):
         # cbar = fig.colorbar(sm, ax=axes[0])
         # cbar.set_label('Iteration Value')
 
-        target_spectrum = row['artifact.pickle.']['target_spectrum'].load()
-        axes[1].scatter(target_spectrum[0], target_spectrum[1], color=color, s=300, marker='*', label='Target', edgecolors='black', zorder=10)
+        axes.scatter(1., 1., color=color, s=300, marker='*', label='Target', edgecolors='black', zorder=10)
         if "SemiGradientSSL" in method:
             axes[1].scatter(target_spectrum[0],0, color='tab:red', s=200, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
 
 
         legend_handles.append(line)
 
+    axes.scatter(0, 0, color='tab:red', s=100, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
+
+
     # --- Formatting ---
     
-    # 1. Alignment Trajectory
-    axes[0].set_title("Subspace Alignment Trajectory", fontsize=14, fontweight='bold')
-    axes[0].set_xlabel("Align 1 (Cosine)")
-    axes[0].set_ylabel("Align 2 (Cosine)")
-    # Ground truth reference
-    axes[0].axhline(1.0, color='gray', linestyle='--', alpha=0.5)
-    axes[0].axvline(1.0, color='gray', linestyle='--', alpha=0.5)
-    axes[0].scatter(1, 1, color='gold', s=300, marker='*', label='Target', edgecolors='black', zorder=10)
-    axes[0].set_aspect('equal') # Standardize aspect ratio
-    axes[0].set_xlim(-0.05, 1.1); axes[0].set_ylim(-0.05, 1.1)
-
-    axes[1].scatter(0, 0, color='tab:red', s=100, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
-
-
     # 2. Singular Value Trajectory
-    axes[1].set_title("Singular Value Trajectory", fontsize=14, fontweight='bold')
-    axes[1].set_xlabel("Singular Value 1")
-    axes[1].set_ylabel("Singular Value 2")
+    axes.set_title("Spectrum Ratio Trajectory", fontsize=14, fontweight='bold')
+    axes.set_xlabel("First Spectrum Ratio")
+    axes.set_ylabel("Second Spectrum Ratio")
     #axes[1].set_xlim([0,10])
     lin_thresh = 0.0000001
-    axes[1].set_xscale('symlog', linthresh=lin_thresh)
-    axes[1].set_yscale('symlog', linthresh=lin_thresh)
+    axes.set_xscale('symlog', linthresh=lin_thresh)
+    axes.set_yscale('symlog', linthresh=lin_thresh)
 
 
 
@@ -222,18 +272,9 @@ def plot_phase_portrait(df, figures_dir="figures"):
     # Here we plot the targets as red crosses if you have them calculated:
     # axes[1].scatter(target_s1, target_s2, color='red', marker='+', s=150, zorder=12, label='Analytical FP')
 
-    # 3. Convergence Rate
-    axes[2].set_title("Convergence Rate", fontsize=14, fontweight='bold')
-    axes[2].set_xlabel("Iterations")
-    axes[2].set_ylabel("Running Grad Norm")
-    axes[2].set_yscale('log')
-    axes[2].set_xscale('log')
-    axes[2].set_ylim(bottom=1e-10)
-
-    for ax in axes:
-        ax.grid(True, which="both", linestyle=':', alpha=0.4)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+    axes.grid(True, which="both", linestyle=':', alpha=0.4)
+    axes.spines['top'].set_visible(False)
+    axes.spines['right'].set_visible(False)
 
     # Clean Legend
     fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 1.08), 
@@ -243,67 +284,7 @@ def plot_phase_portrait(df, figures_dir="figures"):
     save_and_show('trajectory_comparison', figures_dir= figures_dir)
 
 
-def get_history(row, step=10000):
-    import re
 
-    # 1. Get all keys
-    all_keys = row['artifact.pickle.'].keys()
-
-    # 2. Extract and parse keys starting with 'alignments_'
-    # We split by '_' and take the last part, converting it to an int
-    alignments_indices = {
-        int(k.split('_')[-1]): k 
-        for k in all_keys if k.startswith('alignments_')
-    }
-
-    # 3. Sort by iteration number to ensure chronological order
-    sorted_iterations = sorted(alignments_indices.keys())
-    history = {'alignment': [],
-                'spectrum': [],
-                'timesteps': []}
-    # Example usage:
-
-    for i in sorted_iterations:
-        if np.mod(i,step)==0:
-            key = alignments_indices[i]
-            data = row['artifact.pickle.'][key].load()
-            history['alignment'].append(data['alignment'])
-            history['spectrum'].append(data['spectrum_ratio'])
-            history['timesteps'].append(i)
-        # print(f"Iteration {i}: {data}")
-
-    history['alignment'] = np.array(history['alignment'])
-    history['spectrum'] = np.array(history['spectrum'])
-    history['timesteps'] = np.array(history['timesteps'])
-
-    spectrum = np.zeros_like(history['alignment'])
-    min_shape = min(history['alignment'].shape[1], history['spectrum'].shape[1])
-    spectrum[:,:min_shape] = history['spectrum'][:,:min_shape]
-    history['spectrum'] = spectrum
-    # Assign the original values to the first two slots
-    #history['target_spectrum'] = data['target_ratio']
-    history['target_spectrum'] = np.ones(history['alignment'].shape[1])#data['target_ratio']
-    history['target_spectrum'][4:] = 0.
-    return history
-
-def heatmap_log(full_heatmap, x):
-    if np.any(x <= 0):
-    # common pragmatic choice:
-        x = x - x.min() + 1.0
-
-    N, T = full_heatmap.shape
-
-    # choose how many columns you want in the log-resampled image (often same as T)
-    T_log = T
-
-    # log-spaced x grid covering same range
-    x_log = np.exp(np.linspace(np.log(x[0]), np.log(x[-1]), T_log))
-
-    # resample each row using 1D linear interpolation
-    heatmap_log = np.empty((N, T_log), dtype=float)
-    for i in range(N):
-        heatmap_log[i] = np.interp(x_log, x, full_heatmap[i])
-    return heatmap_log, x_log
 
 
 
@@ -481,7 +462,8 @@ def plot_run_grad_norm(df, method_label, figures_dir, filename=None):
         iters = np.array(row['metrics.iter'])
         color = cmap(norm(scale))
         ax.plot(iters[::step], grad_norm[::step], color=color, lw=1, alpha=1.)
-    fontsize = 30
+        break
+    fontsize = 12
     ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=fontsize)
     ax.set_xlabel("Training iterations", fontsize=fontsize)
     
@@ -531,23 +513,24 @@ def plot_method_standalone_figures(df, figures_dir):
 
     for key, group in df_group.items():
         method = method_label[key[0]]
-        plot_run_spectral_stack(
-            group,
-            method,
-            figures_dir=figures_dir,
-            data="spectrum",
-            filename=f"spectrum_image_",
-        )
-        plot_run_spectral_stack(
-            group,
-            method,
-            figures_dir=figures_dir,
-            data="alignment",
-            filename=f"alignment_image_",
-        )
+        # plot_run_spectral_stack(
+        #     group,
+        #     method,
+        #     figures_dir=figures_dir,
+        #     data="spectrum",
+        #     filename=f"spectrum_image_",
+        # )
+        # plot_run_spectral_stack(
+        #     group,
+        #     method,
+        #     figures_dir=figures_dir,
+        #     data="alignment",
+        #     filename=f"alignment_image_",
+        # )
         plot_run_grad_norm(
             group,
             method,
             figures_dir=figures_dir,
             filename=f"grad_norm_",
         )
+        break

@@ -12,7 +12,7 @@
 # module load pytorch-gpu/py3/2.5.0
 
 parent_work_dir="../../data/.workdir"
-parent_log_dir="../../data/outputs/stability_range"
+parent_log_dir="../../data/outputs/stability_range_2"
 
 
 

@@ -32,7 +32,7 @@ def main():
     # - single init scale
     # - ssl_exact only with lr=10
     # - ssl_exact only successful/not failed (when success field is present)
-
+    
     plot_method_standalone_figures(results, figures_dir=FIGURES_DIR)
 
 

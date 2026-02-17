@@ -250,7 +250,8 @@ class CCAExperimentRunner:
                 self.first_grad = 1.#metrics["grad_norm"]
                 self.first_iter = False
             metrics["grad_norm"] /= self.first_grad 
-            if self.with_logging:
+            
+            if self.with_logging and np.mod(step, 100) == 0:
                 self.logger.log_metrics( metrics, log_name="metrics")
 
                 if artifact_dict is not None and store_artifacts:
