@@ -243,7 +243,7 @@ def plot_phase_portrait(df, figures_dir="figures"):
     save_and_show('trajectory_comparison', figures_dir= figures_dir)
 
 
-def get_history(row):
+def get_history(row, step=10000):
     import re
 
     # 1. Get all keys
@@ -262,145 +262,249 @@ def get_history(row):
                 'spectrum': [],
                 'timesteps': []}
     # Example usage:
+
     for i in sorted_iterations:
-        key = alignments_indices[i]
-        data = row['artifact.pickle.'][key].load()
-        history['alignment'].append(data['alignment'])
-        history['spectrum'].append(data['spectrum_ratio'])
-        history['timesteps'].append(i)
+        if np.mod(i,step)==0:
+            key = alignments_indices[i]
+            data = row['artifact.pickle.'][key].load()
+            history['alignment'].append(data['alignment'])
+            history['spectrum'].append(data['spectrum_ratio'])
+            history['timesteps'].append(i)
         # print(f"Iteration {i}: {data}")
 
     history['alignment'] = np.array(history['alignment'])
     history['spectrum'] = np.array(history['spectrum'])
     history['timesteps'] = np.array(history['timesteps'])
-    # Assign the original values to the first two slots
-    history['target_spectrum'] = data['target_ratio']
-    #history['target_spectrum'] = np.ones(history['spectrum'].shape[1])#data['target_ratio']
 
+    spectrum = np.zeros_like(history['alignment'])
+    min_shape = min(history['alignment'].shape[1], history['spectrum'].shape[1])
+    spectrum[:,:min_shape] = history['spectrum'][:,:min_shape]
+    history['spectrum'] = spectrum
+    # Assign the original values to the first two slots
+    #history['target_spectrum'] = data['target_ratio']
+    history['target_spectrum'] = np.ones(history['alignment'].shape[1])#data['target_ratio']
+    history['target_spectrum'][4:] = 0.
     return history
+
+def heatmap_log(full_heatmap, x):
+    if np.any(x <= 0):
+    # common pragmatic choice:
+        x = x - x.min() + 1.0
+
+    N, T = full_heatmap.shape
+
+    # choose how many columns you want in the log-resampled image (often same as T)
+    T_log = T
+
+    # log-spaced x grid covering same range
+    x_log = np.exp(np.linspace(np.log(x[0]), np.log(x[-1]), T_log))
+
+    # resample each row using 1D linear interpolation
+    heatmap_log = np.empty((N, T_log), dtype=float)
+    for i in range(N):
+        heatmap_log[i] = np.interp(x_log, x, full_heatmap[i])
+    return heatmap_log, x_log
+
 
 
 def plot_run_spectral_stack(
-    row,
+    df,
+    method_label,
     figures_dir,
     data="spectrum",
     filename=None,
-    vmin=None,
-    vmax=None,
+    vmin=1e-4, 
+    vmax=1.,
     percent_max_iter=1.0,
-    percent_target=0.05,
-):
+    percent_target=0.05):
     """
-    Plot spectrum/alignment evolution for a single run, as a standalone figure.
+    Plots a stacked heatmap of singular value evolution over time.
+    Y-axis is partitioned by initialization scale.
     """
-    history = get_history(row)
-    if data not in history:
-        raise KeyError(f"'{data}' is not available in history.")
+    # 1. Setup the grid (Rows = Methods, Cols = Scales)
+    df_group  = df.groupby(['config.task.init_scale'])
+    init_scales =  sorted(list(np.unique([key[0] for key in df_group.keys()])))
+    num_scales = len(init_scales)
+    heatmap_data = []
+    scale_labels = []
+    
+    fig, axes = plt.subplots(num_scales, 1, figsize=(8, 1.2 * num_scales), 
+                             sharex=True, gridspec_kw={'hspace': 0.2})
+    # Sort scales from smallest to largest
+    sorted_scales = sorted(init_scales, reverse=True)
+        
+    for i, scale in enumerate(sorted_scales):
+        ax = axes[i]
+        heatmap_data = []
+        target_data = []
+        # Safely extract data
+        try:
+            scale_df = df_group[(scale,)][0]
+            history = get_history(scale_df)
+            max_iter = int(history[data].shape[0]*percent_max_iter)
+            # Get (Time, 30) -> Slice to (Time, num_top_sv) -> Transpose to (num_top_sv, Time)
+            num_top_sv = history[data].shape[1]
+            sv_evolution = history[data][:max_iter,:].T
+            offset = 0
+            #if data == 'spectrum':
+            target_col = history['target_spectrum'][:num_top_sv].reshape(-1, 1)
+            offset = int(percent_target*sv_evolution.shape[1])
+                
+            timesteps = history['timesteps'][:max_iter]
+            timesteps[timesteps == 0] = 1e-1
+            sv_evolution, timesteps =  heatmap_log(sv_evolution, timesteps)
+            target_block = np.tile(target_col, (1, offset))
+            sv_evolution = np.hstack([sv_evolution,target_block])
 
-    values = history[data]
-    max_iter = max(1, int(values.shape[0] * percent_max_iter))
-    values = values[:max_iter, :]
-    evolution = values.T
-    timesteps = history["timesteps"][:max_iter].copy()
-    timesteps[timesteps == 0] = 1e-1
 
-    offset = 0
-    if data == "spectrum":
-        target = history["target_spectrum"][: evolution.shape[0]].reshape(-1, 1)
-        offset = max(1, int(percent_target * evolution.shape[1]))
-        target_block = np.tile(target, (1, offset))
-        evolution = np.hstack([evolution, target_block])
 
-    if data == "spectrum":
-        vmin = 1e-6 if vmin is None else vmin
-        vmax = 10.0 if vmax is None else vmax
-        norm = mcolors.LogNorm(vmin=vmin, vmax=vmax)
-        title = "Spectral Evolution"
-        cbar_label = "Spectrum magnitude"
-    else:
-        vmin = 0.0 if vmin is None else vmin
-        vmax = 1.0 if vmax is None else vmax
-        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
-        title = "Alignment Evolution"
-        cbar_label = "Alignment magnitude"
+            target_data.append(target_block)
+            heatmap_data.append(sv_evolution)
+            exponent = int(np.log10(scale))
+            if exponent==0:
+                scale_label = rf"$\rho_0=$1"
+            else:
+                scale_label = rf"$\rho_0=$10{to_superscript(exponent)}"
+            scale_labels.append(scale_label)
+        except KeyError:
+            print(f"Warning: No data for {method_label} at scale {scale}")
+            continue
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    img = ax.imshow(
-        np.clip(evolution, vmin, vmax),
-        aspect="auto",
-        cmap="magma",
-        norm=norm,
-        extent=[0, len(timesteps) + offset, 0, evolution.shape[0]],
-        interpolation="nearest",
-    )
+        if not heatmap_data:
+            continue
 
-    if data == "spectrum":
-        rect = patches.Rectangle(
-            (len(timesteps), 0),
-            offset,
-            evolution.shape[0],
-            linewidth=2,
-            edgecolor="yellow",
-            facecolor="none",
-            zorder=10,
-        )
+        # Create the vertical stack
+        full_heatmap = np.vstack(heatmap_data)
+        target_heatmap = np.vstack(target_data)
+        full_heatmap = np.clip(full_heatmap, vmin, vmax)
+        target_heatmap = np.clip(target_heatmap, vmin, vmax)
+        # Plotting
+        # if data=='spectrum':
+
+        #     norm = mcolors.LogNorm(vmin=vmin, vmax=vmax)
+        # else:
+        norm = mcolors.Normalize(vmin=0., vmax=1.)
+        img = ax.imshow(full_heatmap, aspect='auto', cmap='magma',
+                                    norm=norm,
+                                    extent=[0, len(timesteps) + offset, 0, num_top_sv],
+                                    interpolation='nearest')
+        rect = patches.Rectangle((len(timesteps), 0), offset, num_top_sv, 
+                                     linewidth=3, edgecolor='red', facecolor='none', zorder=10)
         ax.add_patch(rect)
-        ax.text(
-            len(timesteps) + max(0.2, offset / 2),
-            evolution.shape[0] * 1.02,
-            "Target",
-            color="black",
-            fontweight="bold",
-            ha="center",
-            fontsize=11,
-        )
+        k = 6
+        pows = 10 ** np.arange(0, k)  # 1..1e5
+        pows = pows[(pows >= timesteps.min()) & (pows <= timesteps.max())]
 
-    method = _row_method(row)
-    ax.set_xlabel("Training iterations", fontsize=12)
-    ax.set_ylabel("Index", fontsize=12)
-    ax.set_title(f"{title}: {method}", fontsize=13)
-    cbar = fig.colorbar(img, ax=ax, aspect=25, pad=0.02)
-    cbar.set_label(cbar_label, size=11)
-    cbar.ax.tick_params(labelsize=10)
-    plt.tight_layout()
+        # index of closest timestep to each power of 10
+        idx = [int(np.argmin(np.abs(timesteps - v))) for v in pows]
 
-    #if filename is None:
-    run_id = _row_id(row)
-    filename +=  f"{_sanitize_filename(method)}_{_sanitize_filename(run_id)}"
-    save_and_show(filename, figures_dir=figures_dir)
-    plt.close(fig)
+        # (optional) drop duplicates if timesteps are coarse / repeated matches
+        idx, pows = zip(*sorted(dict(zip(idx, pows)).items()))
+
+        
+        ax.set_xticks(idx)
+
+        ax.set_xticklabels([rf"$10^{{{int(np.log10(v))}}}$" for v in pows], fontsize=15)
+
+        # img = ax.imshow(full_heatmap, aspect='auto', cmap='magma',
+        #                             norm=norm,
+        #                             extent=[timesteps[0], timesteps[-1], 0, num_top_sv],
+        #                             interpolation='nearest')
+        
+        # img2 = ax.imshow(target_heatmap, aspect='auto', cmap='magma',
+        #                             norm=norm,
+        #                             extent=[timesteps[-1], timesteps[-1]+ offset, 0, num_top_sv],
+        #                             interpolation='nearest')
+
+        # #if data=='spectrum':
+        # rect = patches.Rectangle((timesteps[-1], 0), offset, num_top_sv, 
+        #                              linewidth=3, edgecolor='red', facecolor='none', zorder=10)
+        # ax.add_patch(rect)
+        #print(lol)
+        # 4. Labeling the Scale on the Left
+        fontsize=30
+        ax.set_ylabel(scale_label, rotation=0, ha='left', va='center', fontsize=20,labelpad=100)
+        
+        # Remove internal ticks to make it look like a single stack
+        #ax.set_yticks([]) 
+        if i < num_scales - 1:
+            ax.set_xticks([])
+
+        # # Labeling and Grid
+
+    # Shared colorbar
+    axes[-1].set_xlabel("Training iterations",fontsize=fontsize)
+    if data=='spectrum':
+        title = "Spectral ratio"
+    else: 
+        title = "Eigenvector alignment"
+
+    axes[0].set_title(f"{title}: {method_label}", pad=20, fontsize=fontsize)
+    
+    # Add 'Target' text over the top box
+    if data=='spectrum':
+        axes[0].text(len(timesteps) + 0.5, num_top_sv * 1.1, "Target", 
+                     color='black', fontweight='bold', ha='center', fontsize=15)
+
+    cbar = fig.colorbar(img, ax=axes, aspect=20, pad=0.02)
+
+    # Set the main side-label font size
+    cbar.set_label(f'Magnitude', size=fontsize)
+
+    # Set the font size of the numbers (ticks)
+    cbar.ax.tick_params(labelsize=20)
+    save_and_show(f'{data}_image_{method_label}', figures_dir= figures_dir)
 
 
-def plot_run_grad_norm(row, figures_dir, filename=None):
+
+
+
+
+
+
+
+def plot_run_grad_norm(df, method_label, figures_dir, filename=None):
     """
     Plot gradient norm vs iterations for a single run.
     """
-    grad_norm = np.array(_safe_get(row, "metrics.running_grad_norm", []))
-    iters = np.array(_safe_get(row, "metrics.iter", []))
-    if len(grad_norm) == 0 or len(iters) == 0:
-        raise ValueError("Run is missing 'metrics.running_grad_norm' or 'metrics.iter'.")
+    df_group = df.groupby(['config.task.init_scale'])
+    init_scales =  sorted(list(np.unique([key[0] for key in df_group.keys()])))
+    cmap = plt.get_cmap('magma') 
+    norm = mcolors.LogNorm(vmin=min(init_scales), vmax=max(init_scales))
 
-    fig, ax = plt.subplots(figsize=(4.5, 3.2))
-    ax.plot(iters, grad_norm, color="#1f77b4", lw=1.2)
-    ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=12)
-    ax.set_xlabel("Training iterations", fontsize=12)
+
+    fig, ax = plt.subplots(figsize=(4, 3))
+    step = 100
+    for j, scale in enumerate(init_scales): 
+        row = df_group[(scale,)][0]
+        grad_norm = np.array(row['metrics.grad_norm'])
+        iters = np.array(row['metrics.iter'])
+        color = cmap(norm(scale))
+        ax.plot(iters[::step], grad_norm[::step], color=color, lw=1, alpha=1.)
+    fontsize = 30
+    ax.set_ylabel(r"$\|\dot{U}_t\|_2$", fontsize=fontsize)
+    ax.set_xlabel("Training iterations", fontsize=fontsize)
+    
+                # 3. Add a Colorbar to show the scale progression
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+    cbar.set_label(r"Initialization scale $\rho_0$",fontsize=fontsize)
+
+
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.set_ylim(bottom=1e-10, top=1e0)
     ax.grid(True, which="both", linestyle=":", alpha=0.4)
-
-    method = _row_method(row)
-    ax.set_title(method, fontsize=12, pad=10)
+    ax.set_title(f"Vector field norm: {method_label}", fontsize=fontsize, pad=10)
     plt.tight_layout()
 
-    if filename is None:
-        run_id = _row_id(row)
-        filename = f"grad_norm_{_sanitize_filename(method)}_{_sanitize_filename(run_id)}"
+    filename  = f"grad_norm_{method_label}"
     save_and_show(filename, figures_dir=figures_dir)
     plt.close(fig)
 
 
-def plot_method_standalone_figures(rows, figures_dir):
+def plot_method_standalone_figures(df, figures_dir):
     """
     For each method, generate standalone figures for:
     - spectrum evolution
@@ -408,22 +512,42 @@ def plot_method_standalone_figures(rows, figures_dir):
     - gradient norm vs iterations
     Uses one representative run per method (first row in that group).
     """
+    method_key = _method_key(df)
+    df_group = df.groupby([method_key])
+    methods = list(np.unique([key[0] for key in df_group.keys()]))
 
-    for row in rows:
+    colors = ['#1f77b4', '#ff7f0e'] 
+    heatmaps = [plt.cm.Blues, plt.cm.Oranges]
+    #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
+    cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
+    method_label = {
+        "csrlearning.algorithms.CSEExactRegressionAlgorithm": "CSE",
+        "csrlearning.algorithms.SSLExactSemiGrad": "SG-SSL",
+        "csrlearning.algorithms.UnconstrainedCCAAlgorithm": "EY",
+    }
+
+
+
+
+    for key, group in df_group.items():
+        method = method_label[key[0]]
         plot_run_spectral_stack(
-            row,
+            group,
+            method,
             figures_dir=figures_dir,
             data="spectrum",
             filename=f"spectrum_image_",
         )
         plot_run_spectral_stack(
-            row,
+            group,
+            method,
             figures_dir=figures_dir,
             data="alignment",
             filename=f"alignment_image_",
         )
         plot_run_grad_norm(
-            row,
+            group,
+            method,
             figures_dir=figures_dir,
             filename=f"grad_norm_",
         )

@@ -3,7 +3,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=1:10:00
+#SBATCH --time=2:00:00
 #SBATCH --account=jsc@cpu
 #SBATCH --hint=nomultithread
 #SBATCH --open-mode=append
@@ -17,7 +17,7 @@ parent_log_dir="../../data/outputs/effect_feature_dim"
 
 
 
-TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 algorithm="cse_exact"\
                 seed=0,1,2,3,4\
                 task.init_scale=0.000001\

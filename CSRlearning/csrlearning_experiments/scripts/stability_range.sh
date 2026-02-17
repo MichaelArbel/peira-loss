@@ -3,7 +3,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=1:10:00
+#SBATCH --time=2:00:00
 #SBATCH --account=jsc@cpu
 #SBATCH --hint=nomultithread
 #SBATCH --open-mode=append
@@ -17,12 +17,12 @@ parent_log_dir="../../data/outputs/stability_range"
 
 
 
-TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 algorithm="ssl_exact"\
                 seed=0\
                 task.init_scale=0.01,10.\
                 algorithm.kwargs.reg=0.00001\
-                optimizer.kwargs.lr=0.001,0.1,1.,10.,100.,205.,212.,500.,\
+                optimizer.kwargs.lr=0.001,0.1,1.,10.,100.,205.,212.,500.\
                 task.total_steps=400000\
                 data.kwargs.deterministic=True\
                 data.kwargs.sign_flip=False\
@@ -33,7 +33,7 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
                 +mlxp.interactive_mode=True\                
 
 
-TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 algorithm="cse_exact"\
                 seed=0\
                 task.init_scale=0.01,10.\
@@ -48,7 +48,7 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python
                 +mlxp.use_version_manager=True\
                 +mlxp.interactive_mode=True\
 
-TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python -m ipdb main.py \
+TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main.py \
                 algorithm="ey_cca"\
                 seed=0\
                 task.init_scale=0.01,10.\

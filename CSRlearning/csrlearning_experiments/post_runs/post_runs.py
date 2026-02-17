@@ -6,7 +6,7 @@ from viz import plot_method_standalone_figures
 
 
 # Path to the directory containing experiment runs.
-PATH = "../../../data/outputs/deterministic/"
+PATH = "../../../data/outputs/deterministic_2/"
 
 # Where figures are saved.
 FIGURES_DIR = "../../../figures"
@@ -20,7 +20,7 @@ SSL_EXACT_LR = "10"
 
 def main():
     # Start with complete runs from mlxp metadata.
-    query = "info.status=='COMPLETE' & config.task.init_scale==0.000001"
+    query = "info.status=='COMPLETE'"
     query_ssl  = "config.algorithm.name=='csrlearning.algorithms.SSLExactSemiGrad' & config.optimizer.kwargs.lr==10"
     query_non_ssl = "config.algorithm.name!='csrlearning.algorithms.SSLExactSemiGrad'"
     total_query = "("+query + ") & ( (" +  query_ssl + ") | (" + query_non_ssl+") )"
