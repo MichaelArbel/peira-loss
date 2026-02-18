@@ -1,9 +1,9 @@
 import os
-from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import mlxp
 import numpy as np
+from matplotlib.lines import Line2D
 
 from viz import save_and_show
 
@@ -36,20 +36,14 @@ def _row_method(row):
 
 
 def _method_label(method):
-    canon = _canonical_method(method)
-    mapping = {"ssl_exact": "SSLExact", "cse_exact": "CSEExact", "ey_cca": "EyCCA"}
-    return mapping.get(canon, str(method))
+    mapping =  {
+    "csrlearning.algorithms.CSEExactRegressionAlgorithm": "CSE",
+    "csrlearning.algorithms.SSLExactSemiGrad": "SG-SSL",
+    "csrlearning.algorithms.UnconstrainedCCAAlgorithm": "EY"
+    }
+    return mapping.get(method, str(method))
 
 
-def _canonical_method(method):
-    m = str(method).lower()
-    if ("ssl_exact" in m) or ("sslexactsemigrad" in m) or ("semigradientssl" in m):
-        return "ssl_exact"
-    if ("cse_exact" in m) or ("canonicalsubspaceembeddingexact" in m):
-        return "cse_exact"
-    if ("ey_cca" in m) or ("unconstrainedcca" in m):
-        return "ey_cca"
-    return str(method)
 
 
 def _is_successful_row(row):
@@ -75,7 +69,7 @@ def _is_successful_row(row):
 
 
 def _extract_min_grad_norm(row):
-    grad_norm = _safe_get(row, "metrics.running_grad_norm", None)
+    grad_norm = _safe_get(row, "metrics.grad_norm", None)
     if grad_norm is None or len(grad_norm) == 0:
         return None
     grad_norm = np.asarray(grad_norm, dtype=float)
@@ -107,29 +101,24 @@ def _extract_init_scale(row):
         return None
 
 
-def _filter_rows(rows, init_scales=(0.01, 10.0), methods=("ssl_exact", "cse_exact", "ey_cca")):
-    allowed_methods = set(methods) if methods is not None else None
-    filtered = []
-    for row in rows:
-        method = _canonical_method(_row_method(row))
-        scale = _extract_init_scale(row)
-        lr = _extract_lr(row)
-        min_grad = _extract_min_grad_norm(row)
-        if scale is None or lr is None or min_grad is None:
-            continue
-        if not any(_is_close(scale, s) for s in init_scales):
-            continue
-        if (allowed_methods is not None) and (method not in allowed_methods):
-            continue
-        filtered.append(row)
-    return filtered
+def _as_tuple(key):
+    return key if isinstance(key, tuple) else (key,)
+
+
+def _median_min_grad_of_group(group_rows):
+    vals = []
+    for row in group_rows:
+        val = _extract_min_grad_norm(row)
+        if val is not None:
+            vals.append(val)
+    if len(vals) == 0:
+        return None
+    return float(np.median(np.asarray(vals, dtype=float)))
 
 
 def plot_stability_range_min_grad_norm(
-    rows,
+    results,
     figures_dir="../figures",
-    init_scales=(0.01, 10.0),
-    methods=("ssl_exact", "cse_exact", "ey_cca"),
     filename="stability_range_min_grad_norm",
 ):
     """
@@ -137,44 +126,47 @@ def plot_stability_range_min_grad_norm(
     - Color encodes method.
     - Line style encodes initialization scale.
     """
-    filtered_rows = _filter_rows(rows, init_scales=init_scales, methods=methods)
-    if len(filtered_rows) == 0:
-        raise RuntimeError("No rows found for requested methods/init_scales with valid metrics.")
+    grouped = results.groupby(
+        ["config.algorithm.name", "config.task.init_scale", "config.optimizer.kwargs.lr"]
+    )
+    aggregated = {}
+    methods_present = set()
+    init_scales = list(set(results[:]["config.task.init_scale"]))
 
-    grouped = defaultdict(list)
-    for row in filtered_rows:
-        method = _canonical_method(_row_method(row))
-        scale = _extract_init_scale(row)
-        lr = _extract_lr(row)
-        min_grad = _extract_min_grad_norm(row)
-        grouped[(method, scale)].append((lr, min_grad))
+    for key in grouped.keys():
+        method, scale, lr = _as_tuple(key)
+        min_grad = _median_min_grad_of_group(grouped[key])
+        if min_grad is None:
+            continue
+        aggregated[(method, scale, lr)] = min_grad
+        methods_present.add(method)
 
-    # If duplicates exist for a (method, scale, lr), use median.
-    compressed = defaultdict(lambda: defaultdict(list))
-    for (method, scale), points in grouped.items():
-        for lr, min_grad in points:
-            compressed[(method, scale)][lr].append(min_grad)
+    if len(aggregated) == 0:
+        raise RuntimeError("No grouped data for requested methods/init_scales.")
 
-    methods_present = sorted({k[0] for k in compressed.keys()})
+    methods_present = sorted(methods_present)
     method_to_color = {
         method: plt.get_cmap("tab10")(i % 10) for i, method in enumerate(methods_present)
     }
     scale_to_style = {float(init_scales[0]): "-", float(init_scales[1]): "--"}
 
-    plt.figure(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(8, 5))
     for method in methods_present:
         for scale in init_scales:
-            key = (method, float(scale))
-            if key not in compressed:
+            points = [
+                (lr, y)
+                for (m, s, lr), y in aggregated.items()
+                if (m == method) and _is_close(s, float(scale))
+            ]
+            if len(points) == 0:
                 continue
-            lr_to_vals = compressed[key]
-            x = np.array(sorted(lr_to_vals.keys()), dtype=float)
-            y = np.array([np.median(lr_to_vals[lr]) for lr in x], dtype=float)
+            points = sorted(points, key=lambda p: p[0])
+            x = np.array([p[0] for p in points], dtype=float)
+            y = np.array([p[1] for p in points], dtype=float)
 
             style = scale_to_style.get(float(scale), "-")
             color = method_to_color[method]
-            label = f"{_method_label(method)} | init={scale:g}"
-            plt.plot(
+            ax.plot(
                 x,
                 y,
                 linestyle=style,
@@ -182,31 +174,58 @@ def plot_stability_range_min_grad_norm(
                 color=color,
                 linewidth=2,
                 markersize=4,
-                label=label,
             )
 
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.xlabel("Learning rate")
-    plt.ylabel("Minimum running gradient norm (history)")
-    plt.title("Stability Range: Min Gradient Norm vs Learning Rate")
-    plt.grid(True, which="both", linestyle=":", alpha=0.4)
-    plt.legend(frameon=False, fontsize=9)
-    plt.tight_layout()
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Learning rate")
+    ax.set_ylabel("Minimum running gradient norm (history)")
+    ax.set_title("Stability Range: Min Gradient Norm vs Learning Rate")
+    ax.grid(True, which="both", linestyle=":", alpha=0.4)
+
+    method_handles = [
+        Line2D([0], [0], color=method_to_color[m], lw=2, linestyle="-", label=_method_label(m))
+        for m in methods_present
+    ]
+    scale_handles = [
+        Line2D([0], [0], color="black", lw=2, linestyle=scale_to_style[float(s)], label=rf"$\rho_0={s:g}$")
+        for s in init_scales
+    ]
+
+    legend_methods = ax.legend(
+        handles=method_handles,
+        title="Method",
+        loc="upper right",
+        bbox_to_anchor=(0.995, 0.995),
+        frameon=False,
+        fontsize=9,
+        title_fontsize=10,
+    )
+    ax.add_artist(legend_methods)
+    ax.legend(
+        handles=scale_handles,
+        title="Init scale",
+        loc="upper right",
+        bbox_to_anchor=(0.995, 0.74),
+        frameon=False,
+        fontsize=9,
+        title_fontsize=10,
+    )
+
+    fig.tight_layout()
     save_and_show(filename=filename, figures_dir=figures_dir)
 
 
 def main():
-    path = os.environ.get("CSR_RESULTS_PATH", "data/outputs/deterministic")
-    figures_dir = os.environ.get("CSR_FIGURES_DIR", "../figures")
+    path = "../../../data/outputs/stability_range_2/"
+    figures_dir = "../../../figures"
 
-    rows = mlxp.Reader(path).filter()
+
+    rows = mlxp.Reader(path,refresh=False).filter()
 
     plot_stability_range_min_grad_norm(
         rows,
         figures_dir=figures_dir,
-        init_scales=(0.01, 10.0),
-        methods=("ssl_exact", "cse_exact", "ey_cca"),
         filename="stability_range_min_grad_norm",
     )
 

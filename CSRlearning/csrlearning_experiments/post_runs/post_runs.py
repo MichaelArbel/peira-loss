@@ -34,6 +34,14 @@ color_dict = {
     "csrlearning.algorithms.UnconstrainedCCAAlgorithm": '#ff7f0e',
    
 }
+methods_present = set(["csrlearning.algorithms.CSEExactRegressionAlgorithm",
+    "csrlearning.algorithms.SSLExactSemiGrad",
+    "csrlearning.algorithms.UnconstrainedCCAAlgorithm"])
+color_dict = {
+        method: plt.get_cmap("tab10")(i % 10) for i, method in enumerate(methods_present)
+    }
+
+
 
 def plot_method_standalone_figures(df, figures_dir):
     """
@@ -93,7 +101,7 @@ def main():
 
 
 def main_phase_portrait():
-    query = "info.status=='COMPLETE' & config.task.init_scale in [0.000001,0.01]"
+    query = "info.status=='COMPLETE' & config.task.init_scale in [0.000001, 0.00001, 0.01]"
     query_ssl  = "config.algorithm.name=='csrlearning.algorithms.SSLExactSemiGrad' & config.optimizer.kwargs.lr==10."
     query_non_ssl = "config.algorithm.name!='csrlearning.algorithms.SSLExactSemiGrad'"
     total_query = "("+query + ") & ( (" +  query_ssl + ") | (" + query_non_ssl+") )"

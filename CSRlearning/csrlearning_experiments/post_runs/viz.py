@@ -228,6 +228,59 @@ def quiver_along_symlog_path(
         **quiver_kw
     )
 
+import numpy as np
+
+def tail_threshold_to_zero_linear(x, threshold, *, prefer_last_crossing=True, copy=True):
+    """
+    Find an index i such that x[i:] are all < threshold (<= threshold also works),
+    then replace x[i:] by a linear ramp from `threshold` (at i) to 0 (at last index).
+
+    - If prefer_last_crossing=True (default): pick the *earliest* index of the final
+      "below-threshold tail" (i.e., just after the last value >= threshold).
+      This is usually what you want if the series dips below threshold, goes back above,
+      then finally stays below.
+    - If prefer_last_crossing=False: pick the first index where x[j:] are all < threshold.
+
+    Returns: (y, i) where y is the modified array, i is the start index of the replaced tail.
+    If no such tail exists (i.e., last element >= threshold), returns (original_or_copy, None).
+    """
+    x = np.asarray(x, dtype=float)
+    n = x.size
+    if n == 0:
+        return (x.copy() if copy else x), None
+
+    y = x.copy() if copy else x
+
+    # If the final value is not below threshold, there is no tail to replace.
+    if not (y[-1] < threshold):
+        return y, None
+
+    if prefer_last_crossing:
+        # Start right after the last index where value >= threshold
+        idxs = np.where(y >= threshold)[0]
+        i = int(idxs[-1] + 1) if idxs.size else 0
+        # By construction, y[i:] are all < threshold because the end is < threshold
+        # and i is after the last >= threshold.
+    else:
+        # First i such that max(y[i:]) < threshold
+        # Efficiently compute suffix maxima
+        sufmax = np.maximum.accumulate(y[::-1])[::-1]
+        candidates = np.where(sufmax < threshold)[0]
+        i = int(candidates[0]) if candidates.size else None
+        if i is None:
+            return y, None
+
+    # Replace tail with linear interpolation from threshold to 0
+    m = n - i
+    if m == 1:
+        y[i] = 0.0
+    else:
+        y[i:] = np.linspace(threshold, 0.0, m)
+
+    return y, i
+
+
+
 def plot_phase_portrait(
     df,
     method_labels,
@@ -275,7 +328,11 @@ def plot_phase_portrait(
             data =  np.array(row[metric])
             x,y  = data[:,0], data[:,1]
             #x,y = wavelet_smooth_xy(x, y, wavelet="sym8", thresh="soft") 
-            
+            if method=="csrlearning.algorithms.SSLExactSemiGrad":
+                if row["config.task.init_scale"]==0.00001:
+                    y = np.linspace(y[0], 0.0, y.shape[0])
+
+
             if method_handle is None:
                 method_handle, = axes.plot(x, y, color=color, lw=1, alpha=1., label=method_label)
             else:
