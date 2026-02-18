@@ -22,51 +22,6 @@ superscripts = {
 def to_superscript(n):
     return "".join(superscripts[c] for c in str(n))
 
-def _method_key(df):
-    return "config.algorithm.name" 
-
-
-
-
-
-def _is_successful_row(row):
-    status_keys = [
-        "info.status",
-        "info.mlxp.status",
-        "mlxp.status",
-    ]
-    success_keys = [
-        "info.succeeded",
-        "info.mlxp.succeeded",
-        "mlxp.succeeded",
-    ]
-    for key in success_keys:
-        value = _safe_get(row, key)
-        if value is not None:
-            return bool(value)
-    for key in status_keys:
-        value = _safe_get(row, key)
-        if value is not None:
-            return str(value).upper() in {"COMPLETE", "SUCCEEDED", "SUCCESS"}
-    return True
-
-
-def _row_id(row):
-    return row['info.logger.log_id']
-
-def _row_method(row):
-    return row['config.algorithm.name']
-
-def _sanitize_filename(name):
-    out = []
-    for ch in str(name):
-        if ch.isalnum() or ch in ("_", "-", "."):
-            out.append(ch)
-        else:
-            out.append("_")
-    return "".join(out)
-
-
 
 def save_and_show(filename='latest_plot', figures_dir="figures"):
     # 1. Save to disk
@@ -181,8 +136,102 @@ def add_arrows(s1, s2, axis, arrow_steps, n_points, color, fixed_pixel_length=0.
                                  zorder=20)
 
 
+def wavelet_denoise_1d(sig, wavelet="sym8", level=None, mode="symmetric",
+                      thresh="soft", sigma=None, thr_factor=5.):
+    """
+    Adaptive wavelet denoising via coefficient shrinkage.
+    - thresh: "soft" (default, smoother) or "hard" (preserves edges more).
+    - sigma: if None, estimated via MAD of the finest detail coefficients.
+    """
+    import pywt  # pip install PyWavelets
+
+    sig = np.asarray(sig, dtype=float)
+    if sig.size < 8:
+        return sig.copy()
+
+    coeffs = pywt.wavedec(sig, wavelet=wavelet, mode=mode, level=level)
+
+    # Estimate noise from the finest-scale detail coeffs
+    if sigma is None:
+        d1 = coeffs[-1]
+        sigma = np.median(np.abs(d1 - np.median(d1))) / 0.6745 if d1.size else 0.0
+
+    # Universal threshold (good default)
+    uthresh = thr_factor*sigma * np.sqrt(2 * np.log(sig.size)) if sigma > 0 else 0.0
+    #uthresh = thr_factor * sigma * np.sqrt(2 * np.log(n)) if sigma > 0 else 0.0
+    # Shrink detail coefficients (keep approximation coeffs untouched)
+    new_coeffs = [coeffs[0]]
+    for cD in coeffs[1:]:
+        new_coeffs.append(pywt.threshold(cD, value=uthresh, mode=thresh))
+
+    rec = pywt.waverec(new_coeffs, wavelet=wavelet, mode=mode)
+    return rec[:sig.size]
+
+def wavelet_smooth_xy(x, y, **kw):
+    xs = wavelet_denoise_1d(x, **kw)
+    ys = wavelet_denoise_1d(y, **kw)
+    return xs, ys
+
+
+
+def quiver_along_symlog_path(
+    ax, x, y,
+    spacing_frac=0.08,   # fraction of axes diagonal between arrows
+    arrow_frac=0.025,    # fraction of axes diagonal for arrow length
+    **quiver_kw
+):
+    x = np.asarray(x); y = np.asarray(y)
+    pts = np.column_stack([x, y])
+
+    # Transform data -> display (pixels). This includes log/symlog transforms.
+    disp = ax.transData.transform(pts)  # shape (N,2), in pixels
+
+    # Arc-length in display space (pixels)
+    d = np.diff(disp, axis=0)
+    seglen = np.hypot(d[:, 0], d[:, 1])
+    s = np.concatenate([[0.0], np.cumsum(seglen)])
+    total = s[-1]
+    if total == 0:
+        return
+
+    # Axes diagonal in pixels (for scale)
+    bbox = ax.get_window_extent()
+    diag = np.hypot(bbox.width, bbox.height)
+
+    spacing_px = spacing_frac * diag
+    arrow_px   = arrow_frac   * diag
+
+    # Target positions along the curve in display arc-length
+    targets = np.arange(0, total, spacing_px)
+    idx = np.searchsorted(s, targets, side="right") - 1
+    idx = np.clip(idx, 0, len(x) - 2)
+
+    # Unit tangents in display space (per segment)
+    t = d[idx]
+    norm = np.hypot(t[:, 0], t[:, 1])
+    norm[norm == 0] = 1.0
+    t_unit = (t.T / norm).T  # (K,2)
+
+    # Arrow vectors in display space (pixels)
+    v0_disp = disp[idx]
+    v1_disp = v0_disp + t_unit * arrow_px
+
+    # Convert back to data coords for quiver
+    v0_data = ax.transData.inverted().transform(v0_disp)
+    v1_data = ax.transData.inverted().transform(v1_disp)
+    uv_data = v1_data - v0_data
+
+    ax.quiver(
+        v0_data[:, 0], v0_data[:, 1],
+        uv_data[:, 0], uv_data[:, 1],
+        angles="xy", scale_units="xy", scale=1,
+        **quiver_kw
+    )
+
 def plot_phase_portrait(
     df,
+    method_labels,
+    color_dict,
     figures_dir,
     data="spectrum",
     filename=None,
@@ -190,42 +239,62 @@ def plot_phase_portrait(
     vmax=1.):
     # 1. Setup the figure
     fig, axes = plt.subplots(1, 1, figsize=(4, 4))
-    
+    lin_thresh = 1e-11
+    axes.set_xscale('symlog', linthresh=lin_thresh)
+    axes.set_yscale('symlog', linthresh=lin_thresh)
     # Use standard grouping
-    method_key = _method_key(df)
+    method_key = "config.algorithm.name" 
     df_group = df.groupby([method_key])
     methods = [key[0] for key in df_group.keys()]
-    colors = ['#1f77b4', '#ff7f0e'] 
+    
     heatmaps = [plt.cm.Blues, plt.cm.Oranges, plt.cm.Reds]
-    method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
+    method_color_map = color_dict
     method_color_map_heat = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
     legend_handles = []
     #norm = mcolors.Normalize(vmin=0, vmax=df[0]['config.task.steps_per_epoch'])
     norm = mcolors.LogNorm(vmin=1, vmax=df[0]['config.task.total_steps'])
-    
+    if data=="spectrum":
+        metric = 'metrics.singval_ratio'
+    else:
+        metric = 'metrics.align'
+
     for method in methods:
         method_df = df_group[(method,)]
         color = method_color_map[method]
+        method_label = method_labels[method] 
         cmap_name = method_color_map_heat[method]
         # Lists to store trajectories for mean/std calculation
         all_a1, all_a2 = [], []
-        all_s1, all_s2 = [], []
+        all_s1, all_s2 = [], [] 
         all_grads = []
         all_iters = []
-        metric = 'metrics.singval_ratio'
+        method_handle = None
         for row in method_df:
-            # Data extraction
+            # Data extraction 
 
-            data = row[metric]
-            axes.plot(data[0], data[1], color=color, lw=1,alpha=1.)
-
+            data =  np.array(row[metric])
+            x,y  = data[:,0], data[:,1]
+            #x,y = wavelet_smooth_xy(x, y, wavelet="sym8", thresh="soft") 
+            
+            if method_handle is None:
+                method_handle, = axes.plot(x, y, color=color, lw=1, alpha=1., label=method_label)
+            else:
+                axes.plot(x, y, color=color, lw=1, alpha=1.)
 
                 # --- Add Directional Arrows ---
             # Pick specific indices to place arrows (e.g., every 20% of the trajectory)
             # We use a subset of indices to avoid clutter
-            n_points = len(s1)
-            arrow_steps = [3, 10, 100]
-            add_arrows(data[0], data[1], axes, arrow_steps, n_points, color, fixed_pixel_length=0.01)
+            #arrows_by_arclength(axes, x, y, spacing=0.5, arrow_len=0.02, color='black', width=.003)
+            quiver_along_symlog_path(
+                                axes, x, y,
+                                spacing_frac=0.08,   # ~10–15 arrows typically
+                                arrow_frac=0.025,    # nice visible arrow
+                                color="black",
+                                width=0.006, headwidth=3, headlength=4, headaxislength=3,
+                                zorder=10,
+                            )
+
+            #add_arrows(x,y, axes, arrow_steps, n_points, color, fixed_pixel_length=0.01)
 
             # Plot individual trajectories with high transparency
             #line, = axes[0].plot(a1, a2, color=color, lw=1.)
@@ -234,8 +303,8 @@ def plot_phase_portrait(
             # Store for averaging (assuming same lengths, or interpolate if needed)
 
             # Start and End Markers for individual runs
-            axes.scatter(data[0][0], data[1][0], color='black', s=15, marker='o')
-            axes.scatter(data[0][-1], data[1][-1], color=color, s=25, marker='x')
+            axes.scatter(x[0], y[0], color='black', s=15, marker='o')
+            #axes.scatter(x[-1], y[-1], color=color, s=25, marker='x')
 
         # # Add this after you've added the collections to the axes
         # sm = plt.cm.ScalarMappable(cmap=cmap_name, norm=norm)
@@ -243,15 +312,13 @@ def plot_phase_portrait(
         # cbar = fig.colorbar(sm, ax=axes[0])
         # cbar.set_label('Iteration Value')
 
-        axes.scatter(1., 1., color=color, s=300, marker='*', label='Target', edgecolors='black', zorder=10)
-        if "SemiGradientSSL" in method:
-            axes[1].scatter(target_spectrum[0],0, color='tab:red', s=200, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
 
 
-        legend_handles.append(line)
+        legend_handles.append(method_handle)
 
-    axes.scatter(0, 0, color='tab:red', s=100, marker=r'$\oslash$',label='Collapsed fixed point', edgecolors='black', zorder=10)
-
+    axes.scatter(1.,0, color='tab:red', s=20, marker='o',  edgecolors='black', zorder=10)
+    axes.scatter(0, 0, color='tab:red', s=20, marker='o',label='Collapsed fixed point', edgecolors='black', zorder=10)
+    axes.scatter(1., 1., color="gold", s=300, marker='*', label='Target', edgecolors='black', zorder=10)
 
     # --- Formatting ---
     
@@ -260,11 +327,10 @@ def plot_phase_portrait(
     axes.set_xlabel("First Spectrum Ratio")
     axes.set_ylabel("Second Spectrum Ratio")
     #axes[1].set_xlim([0,10])
-    lin_thresh = 0.0000001
-    axes.set_xscale('symlog', linthresh=lin_thresh)
-    axes.set_yscale('symlog', linthresh=lin_thresh)
 
 
+    axes.set_xticks([])
+    axes.set_yticks([])
 
     # --- Integration of your Theoretical Fixed Point ---
     # Replace these with the actual Corr and thresh values from your config if needed
@@ -277,6 +343,14 @@ def plot_phase_portrait(
     axes.spines['right'].set_visible(False)
 
     # Clean Legend
+
+    handles, labels = axes.get_legend_handles_labels()
+    # remove ones you already put in legend_handles (by identity)
+    top_set = set(legend_handles)
+    rest = [(h, l) for h, l in zip(handles, labels) if h not in top_set]
+    ax_leg =  axes.legend([h for h, _ in rest], [l for _, l in rest], loc="upper left")
+    axes.add_artist(ax_leg)
+
     fig.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, 1.08), 
                ncol=len(methods), frameon=False, fontsize=12)
 
@@ -485,50 +559,4 @@ def plot_run_grad_norm(df, method_label, figures_dir, filename=None):
     plt.close(fig)
 
 
-def plot_method_standalone_figures(df, figures_dir):
-    """
-    For each method, generate standalone figures for:
-    - spectrum evolution
-    - alignment evolution
-    - gradient norm vs iterations
-    Uses one representative run per method (first row in that group).
-    """
-    method_key = _method_key(df)
-    df_group = df.groupby([method_key])
-    methods = list(np.unique([key[0] for key in df_group.keys()]))
 
-    colors = ['#1f77b4', '#ff7f0e'] 
-    heatmaps = [plt.cm.Blues, plt.cm.Oranges]
-    #method_color_map = {method: colors[i % len(colors)] for i, method in enumerate(methods)}
-    cmaps = {method: heatmaps[i % len(heatmaps)] for i, method in enumerate(methods)}
-    method_label = {
-        "csrlearning.algorithms.CSEExactRegressionAlgorithm": "CSE",
-        "csrlearning.algorithms.SSLExactSemiGrad": "SG-SSL",
-        "csrlearning.algorithms.UnconstrainedCCAAlgorithm": "EY",
-    }
-
-
-
-
-    for key, group in df_group.items():
-        method = method_label[key[0]]
-        # plot_run_spectral_stack(
-        #     group,
-        #     method,
-        #     figures_dir=figures_dir,
-        #     data="spectrum",
-        #     filename=f"spectrum_image_",
-        # )
-        # plot_run_spectral_stack(
-        #     group,
-        #     method,
-        #     figures_dir=figures_dir,
-        #     data="alignment",
-        #     filename=f"alignment_image_",
-        # )
-        plot_run_grad_norm(
-            group,
-            method,
-            figures_dir=figures_dir,
-            filename=f"grad_norm_",
-        )
