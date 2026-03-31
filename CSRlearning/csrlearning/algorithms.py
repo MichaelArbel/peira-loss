@@ -28,6 +28,23 @@ class AlgorithmState:
 
 
 
+class RegScheduler:
+    def __init__(self,algorithm, scheduler_ctor):
+        self.algorithm = algorithm
+                    # dummy parameter, never actually used by your model
+        dummy = torch.nn.Parameter(torch.tensor(0.0))
+
+        # store alpha in the optimizer LR field
+        self.opt = torch.optim.SGD([dummy], lr=algorithm.reg)
+        self.scheduler = scheduler_ctor(self.opt)
+
+    def step(self, epoch):
+
+        self.opt.step()
+        self.scheduler.step(epoch)
+        self.algorithm.reg = self.opt.param_groups[0]["lr"]
+        self.algorithm.regressor.reg = self.opt.param_groups[0]["lr"]
+
 
 
 class BaseAlgorithm(nn.Module):
@@ -75,6 +92,9 @@ class CSEAlgorithm(BaseAlgorithm):
     def forward(self, X, Y, state):
         pred, adjoint_pred = state.pred, state.adjoint
         return cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
+
+
+
 
 class SSLAlgorithmParam(BaseAlgorithm):
     def __init__(self, reg, **kwargs):
@@ -140,11 +160,18 @@ class StochasticCompositionalGradientAlgorithm(BaseAlgorithm):
         optimizer_ctor,
         scheduler_ctor,
         symmetric,
-        with_adjoint, **kwargs
+        with_adjoint, 
+        reg_scheduler_ctor = None,
+        **kwargs
     ):
         super().__init__(**kwargs)
         self.n_iter = n_iter
         self.reg = reg
+        if reg_scheduler_ctor:
+            self.reg_scheduler = RegScheduler(self, reg_scheduler_ctor)
+        else:
+            self.reg_scheduler = None
+
         self.regressor = regressor_cl(
             pred_init=torch.zeros(latent_dim,latent_dim),
             adjoint_init=torch.zeros(latent_dim,latent_dim),
@@ -189,12 +216,12 @@ class BilevelStoGradJoint(StochasticCompositionalGradientAlgorithm):
                  with_adjoint, 
                  lr=0.01, 
                  T_max=20000,
-                 eta_min=0.0,
+                 lr_min=0.0,
                  **kwargs):
         n_iter = 1
         from .linear_regressor import IterativeDiffRegressor
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=lr)
-        scheduler_ctor = lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, eta_min= eta_min, 
+        scheduler_ctor = lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, eta_min= lr_min, 
                                                                                     T_max=T_max)
         super().__init__(IterativeDiffRegressor, 
                          reg, 
@@ -229,12 +256,20 @@ class StoCompGrad(StochasticCompositionalGradientAlgorithm):
                  with_adjoint, 
                  lr=0.01, 
                  T_max=20000,
-                 eta_min=0.0,
+                 lr_min=0.0,
+                 reg_min=None,
                  **kwargs):
         from .linear_regressor import MomentumRegressor
         optimizer_ctor = lambda params: torch.optim.SGD(params, lr=lr)
         scheduler_ctor = lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max,
-                                                                                     eta_min=eta_min)
+                                                                                     eta_min=lr_min)
+        
+        if reg_min is not None:
+            reg_scheduler_ctor = lambda opt: torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=T_max,
+                                                                             eta_min=reg_min)
+        else:
+            reg_scheduler_ctor = None
+
         super().__init__(MomentumRegressor, 
                          reg, 
                          n_iter, 
@@ -243,6 +278,7 @@ class StoCompGrad(StochasticCompositionalGradientAlgorithm):
                          scheduler_ctor,
                          symmetric=symmetric,
                          with_adjoint=with_adjoint,
+                         reg_scheduler_ctor=reg_scheduler_ctor,
                          **kwargs
                          )
 
@@ -283,7 +319,7 @@ class CSEStoCompGrad_old(CSEAlgorithm, StoCompGrad):
                  reg, 
                  lr=0.01, 
                  T_max=20000,
-                 eta_min=0.0,
+                 lr_min=0.0,
                  **kwargs):
         super().__init__(
             n_iter=n_iter,
@@ -293,7 +329,7 @@ class CSEStoCompGrad_old(CSEAlgorithm, StoCompGrad):
             with_adjoint=True,
             lr=lr,
             T_max=T_max,
-            eta_min=eta_min,
+            lr_min=lr_min,
             **kwargs
             )
 
@@ -307,7 +343,7 @@ class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
                 reg, 
                 lr=0.01, 
                 T_max=20000,
-                eta_min=0.0,
+                lr_min=0.0,
                 **kwargs):
         super().__init__( 
                         n_iter= n_iter, 
@@ -317,7 +353,7 @@ class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
                         with_adjoint = True, 
                         lr=lr, 
                         T_max=T_max,
-                        eta_min=eta_min,
+                        lr_min=lr_min,
                         **kwargs)
 
 
@@ -326,12 +362,13 @@ class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
 
 class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
     def __init__(self, 
-                 n_iter, 
                  latent_dim, 
+                 n_iter, 
                  reg, 
                  lr=0.01, 
                  T_max=20000,
-                 eta_min=0.0,
+                 lr_min=0.0,
+                 reg_min=None,
                  **kwargs):
         super().__init__(
             n_iter=n_iter,
@@ -341,7 +378,8 @@ class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
             with_adjoint=True,
             lr=lr,
             T_max=T_max,
-            eta_min=eta_min,
+            lr_min=lr_min,
+            reg_min=reg_min,
             **kwargs
             )
 
@@ -415,13 +453,16 @@ class CSEBilevelStoGradJoint(CSEAlgorithm,BilevelStoGradJoint):
                 'peira_loss':peira_loss} 
 
 class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
+                                                                                                    
     def __init__(self, 
-                n_iter, 
-                latent_dim, 
-                reg, 
-                lr=0.01, 
-                T_max=20000,
-                **kwargs):
+                     latent_dim, 
+                     n_iter, 
+                     reg, 
+                     lr=0.01, 
+                     T_max=20000,
+                     lr_min=0.0,
+                     reg_min=None,
+                     **kwargs):
         super().__init__(
             n_iter=n_iter,
             latent_dim=latent_dim,
@@ -430,10 +471,24 @@ class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
             with_adjoint=False,
             lr=lr,
             T_max=T_max,
+            lr_min=lr_min,
+            reg_min=reg_min,
             **kwargs
-        )
+            )
 
+    def forward(self, X, Y, state=None):
+        with torch.autocast(device_type=X.device.type, enabled=False):
+            X_fp32 = X.detach().float()
+            Y_fp32 = Y.detach().float()
 
+            for _ in range(self.inner_steps()):
+                state = self.update_internal_state(X_fp32, Y_fp32)
+
+        pred, adjoint_pred = state.pred, state.adjoint
+        loss = linear_probe_loss(X, Y.detach(), pred, self.reg, symmetric=False)
+        loss = loss + 0.5 * self.reg * torch.mean(torch.sum(X**2,dim=1))
+
+        return {'loss': loss}
 
 
 
