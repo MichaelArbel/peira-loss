@@ -8,7 +8,8 @@ from .objectives import (
     l2_penalty,
     linear_probe_loss,
     exact_linear_probe_loss,
-    eckhart_young_sto_loss
+    eckhart_young_sto_loss,
+    energy
 )
 
 from typing import Any, Dict
@@ -362,9 +363,9 @@ class CSEBilevelStoGrad(CSEAlgorithm, BilevelStoGrad):
 
 class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
     def __init__(self, 
-                 latent_dim, 
-                 n_iter, 
-                 reg, 
+                 latent_dim,
+                 reg,  
+                 n_iter=1, 
                  lr=0.01, 
                  T_max=20000,
                  lr_min=0.0,
@@ -456,8 +457,8 @@ class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
                                                                                                     
     def __init__(self, 
                      latent_dim, 
-                     n_iter, 
                      reg, 
+                     n_iter=1,
                      lr=0.01, 
                      T_max=20000,
                      lr_min=0.0,
@@ -485,10 +486,11 @@ class SSLStoCompSemiGrad(SSLAlgorithm, StoCompGrad):
                 state = self.update_internal_state(X_fp32, Y_fp32)
 
         pred, adjoint_pred = state.pred, state.adjoint
-        loss = linear_probe_loss(X, Y.detach(), pred, self.reg, symmetric=False)
+        loss = linear_probe_loss(X, Y.detach(), pred.detach(), self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * torch.mean(torch.sum(X**2,dim=1))
-
-        return {'loss': loss}
+        lyapunov = energy(self.regressor.intra_cov, self.regressor.inter_cov, self.reg, 2)
+        return {'loss': loss,
+                'lyapunov': lyapunov}
 
 
 
@@ -519,20 +521,40 @@ class SSLBilevelStoSemiGrad(SSLAlgorithm, BilevelStoGrad):
 
 
 class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
+    # def __init__(self, 
+    #             latent_dim, 
+    #             reg, 
+    #             lr=0.01, 
+    #             T_max=20000,
+    #             **kwargs):
+    #     super().__init__(
+    #                     latent_dim=latent_dim,
+    #                     reg= reg, 
+    #                     symmetric= False, 
+    #                     with_adjoint= False, 
+    #                     lr=lr, 
+    #                     T_max=T_max,
+    #                     **kwargs)
+
     def __init__(self, 
-                latent_dim, 
-                reg, 
-                lr=0.01, 
-                T_max=20000,
-                **kwargs):
+                     latent_dim, 
+                     reg, 
+                     lr=0.01, 
+                     T_max=20000,
+                     lr_min=0.0,
+                     reg_min=None,
+                     **kwargs):
         super().__init__(
-                        latent_dim=latent_dim,
-                        reg= reg, 
-                        symmetric= False, 
-                        with_adjoint= False, 
-                        lr=lr, 
-                        T_max=T_max,
-                        **kwargs)
+            latent_dim=latent_dim,
+            reg=reg,
+            symmetric=False,
+            with_adjoint=False,
+            lr=lr,
+            T_max=T_max,
+            lr_min=lr_min,
+            reg_min=reg_min,
+            **kwargs
+            )
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
@@ -540,7 +562,7 @@ class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
 
     def forward(self, X, Y, state=None):
         pred = self.regressor.pred
-        loss = linear_probe_loss(X, Y, pred, self.reg, symmetric=False)
+        loss = linear_probe_loss(X, Y.detach(), pred, self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * torch.mean(torch.sum(X**2,dim=1))
         return {"loss": loss}
 

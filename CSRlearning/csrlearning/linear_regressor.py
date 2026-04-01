@@ -92,8 +92,14 @@ class MomentumRegressor(nn.Module):
         
         if self.with_adjoint:
             self.adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
-            self.pred = inter_cov @ self.adjoint
+            self.pred = self.inter_cov @ self.adjoint
             return self.pred.detach(), self.adjoint.detach()
         else:
-            self.pred = solve_with_cholesky(inter_cov, add_ridge(self.intra_cov, self.reg))
+            try:
+                self.pred = solve_with_cholesky(self.inter_cov, add_ridge(self.intra_cov, self.reg))
+            
+            except:
+                adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
+                self.pref = self.inter_cov @ adjoint
+            #print(lol)
             return self.pred.detach()

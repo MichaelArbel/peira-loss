@@ -99,7 +99,13 @@ def eckhart_young_sto_loss(X: torch.Tensor, Y: torch.Tensor):
 
 
 
+def energy(intra_cov, inter_cov, reg, exponent):
 
+    intra_cov_reg = add_ridge(intra_cov, reg) 
+    lyapunov = (1./3)*torch.trace( torch.matrix_power(intra_cov_reg, 3))
+    
+    lyapunov = lyapunov  - 1./(exponent)*torch.trace(torch.matrix_power(inter_cov, exponent))
+    return lyapunov
 
 
 
