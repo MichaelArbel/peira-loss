@@ -74,6 +74,7 @@ class MomentumRegressor(nn.Module):
             self.reg = 0.
         self.symmetric = symmetric
         self.with_adjoint = with_adjoint
+        self.is_first= True
     def forward(self, X_det: torch.Tensor, Y_det: torch.Tensor):
         """
         Perform `steps` optimizer steps using detached features.
@@ -85,21 +86,27 @@ class MomentumRegressor(nn.Module):
         if self.symmetric:
             inter_cov =  inter_cov +  inter_cov.t()
             intra_cov = intra_cov + (Y_det.t()@Y_det)/B
-        self.optimizer.zero_grad()
-        self.intra_cov.grad = self.intra_cov.data-intra_cov
-        self.inter_cov.grad = self.inter_cov.data-inter_cov
-        self.optimizer.step()
-        
+        if self.is_first:
+            self.intra_cov.data = intra_cov
+            self.inter_cov.data = inter_cov
+            self.is_first = False
+        else:
+            self.optimizer.zero_grad()
+            self.intra_cov.grad = self.intra_cov.data-intra_cov
+            self.inter_cov.grad = self.inter_cov.data-inter_cov
+            self.optimizer.step()
+            self.scheduler.step()
+
         if self.with_adjoint:
             self.adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
             self.pred = self.inter_cov @ self.adjoint
             return self.pred.detach(), self.adjoint.detach()
         else:
-            try:
-                self.pred = solve_with_cholesky(self.inter_cov, add_ridge(self.intra_cov, self.reg))
+            #try:
+            #    self.pred = solve_with_cholesky(self.inter_cov, add_ridge(self.intra_cov, self.reg))
             
-            except:
-                adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
-                self.pref = self.inter_cov @ adjoint
+            #except:
+            adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
+            self.pred = self.inter_cov @ adjoint
             #print(lol)
             return self.pred.detach()

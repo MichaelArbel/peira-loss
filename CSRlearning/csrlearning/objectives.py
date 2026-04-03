@@ -71,13 +71,31 @@ def exact_linear_probe_loss(X: torch.Tensor, Y: torch.Tensor, reg: float, symmet
 
 
 def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
-    B = X.shape[0]
+    B = X.shape[0]-1
     inter_cov = torch.einsum("mk,mk->", X, Y) / B
     cov_u = torch.einsum("mk,ml->kl", X, X) / B
     cov_v = torch.einsum("mk,ml->kl", Y, Y) / B
-    intra_cov = torch.sum((cov_u + cov_v) ** 2)
+    V = cov_u + cov_v
+    intra_cov = torch.einsum("mk,mk->", V,V)
 
     return -4.0 * inter_cov + intra_cov
+
+
+
+def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
+    B = X.shape[0]
+    C = 2*(X.T @ Y) / (B - 1)
+    V = (X.T @ X) / (B - 1) + (Y.T @ Y) / (B - 1)
+
+    loss = -2*torch.trace(C)+torch.trace(V@V)
+
+    return loss
+
+
+
+
+
+
 
 
 def eckhart_young_sto_loss(X: torch.Tensor, Y: torch.Tensor):

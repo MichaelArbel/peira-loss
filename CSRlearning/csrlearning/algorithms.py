@@ -39,10 +39,9 @@ class RegScheduler:
         self.opt = torch.optim.SGD([dummy], lr=algorithm.reg)
         self.scheduler = scheduler_ctor(self.opt)
 
-    def step(self, epoch):
-
+    def step(self):
         self.opt.step()
-        self.scheduler.step(epoch)
+        self.scheduler.step()
         self.algorithm.reg = self.opt.param_groups[0]["lr"]
         self.algorithm.regressor.reg = self.opt.param_groups[0]["lr"]
 
@@ -75,15 +74,17 @@ class BaseAlgorithm(nn.Module):
 
 class UnconstrainedCCAAlgorithm(BaseAlgorithm):
 
-    def forward(self, X, Y, state):
-        return eckhart_young_loss(X, Y)
-
+    def forward(self, X, Y, state=None):
+        X = X-X.mean(dim=0)
+        Y = Y-Y.mean(dim=0)
+        loss =  eckhart_young_loss(X, Y)
+        return {"loss": loss}
 
 class EYStoAlgorithm(UnconstrainedCCAAlgorithm):
 
-    def forward(self, X, Y, state):
-        return eckhart_young_sto_loss(X, Y)
-
+    def forward(self, X, Y, state=None):
+        loss=  eckhart_young_sto_loss(X, Y)
+        return {"loss": loss}
 
 class CSEAlgorithm(BaseAlgorithm):
     def __init__(self, reg, **kwargs):
@@ -555,17 +556,36 @@ class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
             reg_min=reg_min,
             **kwargs
             )
+        self.intra_cov = None
+        self.inter_cov = None
+
 
     def configure(self, encoders):
         self._weights = [param for param in encoders[0].parameters()]
         return [(self.regressor.optimizer, self.regressor.scheduler)]
+    def update_statistics(self,X,Y):
+        eta = 1.
+        with torch.autocast(device_type=X.device.type, enabled=False):
+            X_fp32 = X.detach().float()
+            Y_fp32 = Y.detach().float()
+            B = X_fp32.shape[0]
+            if self.intra_cov is None:
+                self.intra_cov = (X_fp32.t()@X_fp32)/B
+                self.inter_cov = (Y_fp32.t()@X_fp32)/B
+            else:
+                self.intra_cov = (1-eta)*self.intra_cov + eta*(X_fp32.t()@X_fp32)/B
+                self.inter_cov = (1-eta)*self.inter_cov + eta*(Y_fp32.t()@X_fp32)/B
 
     def forward(self, X, Y, state=None):
         pred = self.regressor.pred
         loss = linear_probe_loss(X, Y.detach(), pred, self.reg, symmetric=False)
         loss = loss + 0.5 * self.reg * torch.mean(torch.sum(X**2,dim=1))
-        return {"loss": loss}
+        self.update_statistics(X,Y)
+        lyapunov = energy(self.intra_cov, self.inter_cov, self.reg, 2)
+        return {
+            "loss": loss,
+            "lyapunov": lyapunov,
+        }
 
     
-
 
