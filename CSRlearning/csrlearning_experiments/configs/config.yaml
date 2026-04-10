@@ -1,0 +1,63 @@
+defaults:
+  - algorithm: cse_bilevel
+
+seed: 0
+
+# task: 
+#   name: "training"
+#   epochs: 50
+#   steps_per_epoch: 1000    # Number of alternating updates per epoch
+
+task: 
+  name: "vectorfield"
+  epochs: 50
+  total_steps: 20000    # Number of alternating updates per epoch
+  init_seed: 0
+  init_scale: 0.000001
+  init_mode: "near_zero"
+
+
+device: "cpu"          # or "cpu"
+type: "double"
+with_logging: True
+with_scheduler: True
+stop_when_completed: False
+eval_on_determinisitc: False
+
+# Data Generation Parameters
+data:
+  name: "csrlearning_experiments.datasets.gaussian.LinearCCADataGenerator"
+  kwargs: 
+    d1: 20                 # Dimension of view 1
+    d2: 20                 # Dimension of view 2
+    k: 10                   # Ground truth latent dimension
+    sigma: 0.1              # Noise level epsilon
+    batch_size: 50
+    deterministic: True
+    sign_flip: False
+
+
+# SCEgrad Hyperparameters
+
+latent_dim: 30
+
+model:
+  name: "torch.nn.Linear"
+  kwargs:
+    bias: False
+
+tracker:
+  momentum: 1.
+
+
+optimizer:
+  name: "torch.optim.SGD"
+  kwargs: 
+    lr: .01
+    weight_decay: 0.
+
+scheduler:
+  name: "torch.optim.lr_scheduler.CosineAnnealingLR"
+  kwargs: {}
+    #T_max: ${task.total_steps}
+    #eta_min: 0.0
