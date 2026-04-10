@@ -2,6 +2,12 @@ import torch
 from .linalg_utils import PDInverse, add_ridge, solve_with_cholesky
 
 
+def _loss_accum_dtype(x: torch.Tensor) -> torch.dtype:
+    # Use float64 for covariance-style reductions to avoid overflow/precision loss.
+    return torch.float64 if x.dtype != torch.float64 else torch.float64
+
+
+
 
 def l2_penalty(param_list):
     pen = 0.
@@ -71,25 +77,21 @@ def exact_linear_probe_loss(X: torch.Tensor, Y: torch.Tensor, reg: float, symmet
 
 
 def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
-    B = X.shape[0]-1
-    inter_cov = torch.einsum("mk,mk->", X, Y) / B
-    cov_u = torch.einsum("mk,ml->kl", X, X) / B
-    cov_v = torch.einsum("mk,ml->kl", Y, Y) / B
+    accum_dtype = _loss_accum_dtype(X)
+    X_acc = X.to(accum_dtype)
+    Y_acc = Y.to(accum_dtype)
+
+    B = X_acc.shape[0]
+    denom = max(B - 1, 1)
+
+    # trace(2 X^T Y / (B-1)) = 2 * <X, Y> / (B-1)
+    inter_trace = 2.0 * torch.sum(X_acc * Y_acc) / denom
+
+    cov_u = (X_acc.T @ X_acc) / denom
+    cov_v = (Y_acc.T @ Y_acc) / denom
     V = cov_u + cov_v
-    intra_cov = torch.einsum("mk,mk->", V,V)
-
-    return -4.0 * inter_cov + intra_cov
-
-
-
-def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
-    B = X.shape[0]
-    C = 2*(X.T @ Y) / (B - 1)
-    V = (X.T @ X) / (B - 1) + (Y.T @ Y) / (B - 1)
-
-    loss = -2*torch.trace(C)+torch.trace(V@V)
-
-    return loss
+    # trace(V @ V) is the Frobenius norm squared for symmetric V.
+    return (-2.0 * inter_trace + torch.sum(V.square()))/V.numel()
 
 
 
@@ -99,16 +101,20 @@ def eckhart_young_loss(X: torch.Tensor, Y: torch.Tensor):
 
 
 def eckhart_young_sto_loss(X: torch.Tensor, Y: torch.Tensor):
-    B = X.shape[0]
-    inter_cov = torch.einsum("mk,mk->", X, Y) / B
-    X1, X2 = torch.tensor_split(X, 2, dim=0)
-    Y1, Y2 = torch.tensor_split(Y, 2, dim=0)
+    accum_dtype = _loss_accum_dtype(X)
+    X_acc = X.to(accum_dtype)
+    Y_acc = Y.to(accum_dtype)
 
-    cov_u1 = torch.einsum("mk,ml->kl", X1, X1) / X1.shape[0]
-    cov_v1 = torch.einsum("mk,ml->kl", Y1, Y1) / Y1.shape[0]
+    B = X_acc.shape[0]
+    inter_cov = torch.einsum("mk,mk->", X_acc, Y_acc) / max(B, 1)
+    X1, X2 = torch.tensor_split(X_acc, 2, dim=0)
+    Y1, Y2 = torch.tensor_split(Y_acc, 2, dim=0)
 
-    cov_u2 = torch.einsum("mk,ml->kl", X2, X2) / X2.shape[0]
-    cov_v2 = torch.einsum("mk,ml->kl", Y2, Y2) / Y2.shape[0]
+    cov_u1 = torch.einsum("mk,ml->kl", X1, X1) / max(X1.shape[0], 1)
+    cov_v1 = torch.einsum("mk,ml->kl", Y1, Y1) / max(Y1.shape[0], 1)
+
+    cov_u2 = torch.einsum("mk,ml->kl", X2, X2) / max(X2.shape[0], 1)
+    cov_v2 = torch.einsum("mk,ml->kl", Y2, Y2) / max(Y2.shape[0], 1)
 
 
     intra_cov = torch.sum((cov_u1 + cov_v1) * (cov_u2 + cov_v2))
@@ -124,6 +130,5 @@ def energy(intra_cov, inter_cov, reg, exponent):
     
     lyapunov = lyapunov  - 1./(exponent)*torch.trace(torch.matrix_power(inter_cov, exponent))
     return lyapunov
-
 
 

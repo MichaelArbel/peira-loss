@@ -100,6 +100,10 @@ class MomentumRegressor(nn.Module):
         if self.with_adjoint:
             self.adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
             self.pred = self.inter_cov @ self.adjoint
+            pred  = inter_cov @ exact_inverse(add_ridge(intra_cov, self.reg))
+            print(f"Trace P: {torch.trace(self.pred)}")
+            print(f"Trace P batch: {torch.trace(pred)}")
+
             return self.pred.detach(), self.adjoint.detach()
         else:
             #try:
