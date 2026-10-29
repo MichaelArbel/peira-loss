@@ -75,8 +75,9 @@ class MomentumRegressor(nn.Module):
         self.symmetric = symmetric
         self.with_adjoint = with_adjoint
         self.is_first= True
+        self.last_stats = {}
     def forward(self, X_det: torch.Tensor, Y_det: torch.Tensor):
-        """
+        """ 
         Perform `steps` optimizer steps using detached features.
         """
         B = X_det.shape[0]
@@ -101,8 +102,27 @@ class MomentumRegressor(nn.Module):
             self.adjoint = exact_inverse(add_ridge(self.intra_cov, self.reg))
             self.pred = self.inter_cov @ self.adjoint
             pred  = inter_cov @ exact_inverse(add_ridge(intra_cov, self.reg))
-            print(f"Trace P: {torch.trace(self.pred)}")
-            print(f"Trace P batch: {torch.trace(pred)}")
+            inter_gap = self.inter_cov.detach() - inter_cov.detach()
+            intra_gap = self.intra_cov.detach() - intra_cov.detach()
+            pred_gap = self.pred.detach() - pred.detach()
+            self.last_stats = {
+                "peira_trace_running": float(torch.trace(self.pred.detach()).item()),
+                "peira_trace_batch": float(torch.trace(pred.detach()).item()),
+                "peira_trace_gap": float(
+                    abs(torch.trace(self.pred.detach()).item() - torch.trace(pred.detach()).item())
+                ),
+                "peira_pred_gap_rel_fro": float(
+                    torch.norm(pred_gap).item() / (torch.norm(pred.detach()).item() + 1e-12)
+                ),
+                "peira_inter_cov_gap_rel_fro": float(
+                    torch.norm(inter_gap).item() / (torch.norm(inter_cov.detach()).item() + 1e-12)
+                ),
+                "peira_intra_cov_gap_rel_fro": float(
+                    torch.norm(intra_gap).item() / (torch.norm(intra_cov.detach()).item() + 1e-12)
+                ),
+                "peira_inner_lr": float(self.optimizer.param_groups[0]["lr"]),
+                "peira_reg": float(self.reg),
+            }
 
             return self.pred.detach(), self.adjoint.detach()
         else:

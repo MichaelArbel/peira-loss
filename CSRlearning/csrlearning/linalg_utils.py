@@ -5,7 +5,7 @@ import torch.nn as nn
 
 class PDInverse(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, X):
+    def forward(ctx, X): 
         
         X_inv = exact_inverse(X)
         ctx.save_for_backward(X_inv)

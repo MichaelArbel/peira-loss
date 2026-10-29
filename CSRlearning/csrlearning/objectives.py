@@ -26,9 +26,11 @@ def linear_probe_loss(X: torch.Tensor, Y: torch.Tensor, P: torch.Tensor, reg: fl
     data_term = 0.5 * torch.mean(torch.sum((X @ P.T - Y) ** 2, dim=1))
     if symmetric:
         data_term = data_term + 0.5 * torch.mean(torch.sum((Y @ P.T - X) ** 2, dim=1))
-    reg_term = 0.5 * reg * P.pow(2).sum()
-    return data_term + reg_term
-
+    if reg >0.:
+        reg_term = 0.5 * reg * P.pow(2).sum()
+        
+        return data_term + reg_term
+    return data_term
 
 def adjoint_pred_loss(X: torch.Tensor, Y: torch.Tensor, P: torch.Tensor, reg: float) -> torch.Tensor:
     data_term = 0.5 * torch.mean(torch.sum((X @ P.T) ** 2, dim=1))

@@ -395,9 +395,89 @@ class CSEStoCompGrad(CSEAlgorithm, StoCompGrad):
 
         pred, adjoint_pred = state.pred, state.adjoint
         peira_loss = cse_loss(X,Y, pred, self.reg)
+        reg_term = 0.5 * self.reg * (
+            torch.mean(torch.sum(X_fp32 ** 2, dim=1)) + torch.mean(torch.sum(Y_fp32 ** 2, dim=1))
+        )
+        result = {
+            'loss': cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg),
+            'peira_loss': peira_loss,
+            #'peira_batch_exact': (
+            #    -0.5 * self.regressor.last_stats["peira_trace_batch"] + reg_term.item()
+            #),
+            #'peira_running_exact_gap': (
+            #    peira_loss.detach().item()
+            #    - (-0.5 * self.regressor.last_stats["peira_trace_batch"] + reg_term.item())
+            #),
+        }
+        #result.update(self.regressor.last_stats)
+        return result
 
-        return {'loss': cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg),
-                'peira_loss': peira_loss}
+
+
+
+
+class PEIRAHybridStoCompGrad(CSEAlgorithm, StoCompGrad):
+    def __init__(self, 
+                 latent_dim,
+                 reg,  
+                 n_iter=1, 
+                 lr=0.01, 
+                 T_max=20000,
+                 lr_min=0.0,
+                 reg_min=None,
+                 gamma=0.5,
+                 **kwargs):
+        super().__init__(
+            n_iter=n_iter,
+            latent_dim=latent_dim,
+            reg=reg,
+            symmetric=True,
+            with_adjoint=True,
+            lr=lr,
+            T_max=T_max,
+            lr_min=lr_min,
+            reg_min=reg_min,
+            **kwargs
+            )
+        self.gamma = gamma
+
+    def forward(self, X, Y, state=None):
+        with torch.autocast(device_type=X.device.type, enabled=False):
+            X_fp32 = X.detach().float()
+            Y_fp32 = Y.detach().float()
+
+            for _ in range(self.inner_steps()):
+                state = self.update_internal_state(X_fp32, Y_fp32)
+
+        pred, adjoint_pred = state.pred, state.adjoint
+        peira_loss = cse_loss(X,Y, pred, self.reg)
+        reg_term = 0.5 * self.reg * (
+            torch.mean(torch.sum(X_fp32 ** 2, dim=1)) + torch.mean(torch.sum(Y_fp32 ** 2, dim=1))
+        )
+        
+        peira_aux_loss = cse_auxiliary_loss(X, Y, pred, adjoint_pred, self.reg)
+        sg_loss = linear_probe_loss(X, Y.detach(), pred, 0., symmetric=False)
+
+        sg_loss = sg_loss + linear_probe_loss(Y, X.detach(), pred, 0., symmetric=False)
+        loss = sg_loss + self.gamma*peira_aux_loss
+
+        result = {
+            'loss': loss,
+            'peira_loss': peira_loss,
+            'peira_batch_exact': (
+                -0.5 * self.regressor.last_stats["peira_trace_batch"] + reg_term.item()
+            ),
+            'peira_running_exact_gap': (
+                peira_loss.detach().item()
+                - (-0.5 * self.regressor.last_stats["peira_trace_batch"] + reg_term.item())
+            ),
+        }
+        result.update(self.regressor.last_stats)
+        return result
+
+
+
+
 
 
 
@@ -588,4 +668,3 @@ class SSLStoSemiGradJoint(SSLAlgorithm,BilevelStoGradJoint):
         }
 
     
-

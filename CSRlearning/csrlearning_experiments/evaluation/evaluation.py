@@ -77,7 +77,7 @@ def compute_spectral_metrics(encoders, data_source, algorithm, tied_encoders):
 
     upper_bound_reg  = compute_upper_bound_reg(algorithm, target_spectrum_info)
 
-    #print(f"upper_bound_reg :{upper_bound_reg}")
+    #print(f"upper_bound_reg : {upper_bound_reg}")
 
     return SpectralMetrics(
         spectrum_ratio=spectrum_ratio,
