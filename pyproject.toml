@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "peira-loss"
+version = "0.1.0"
+description = "PEIRA anti-collapse loss for joint-embedding self-supervised learning (pure PyTorch)."
+readme = "README.md"
+requires-python = ">=3.10"
+# TODO license: choose with Michael (MIT or Apache-2.0)
+authors = [
+    {name = "Michael Arbel"},
+    {name = "Basile Terver"},
+    {name = "Jean Ponce"},
+]
+dependencies = ["torch>=2.1"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
