@@ -1,0 +1,3 @@
+name: peira_learning.algorithms.ExactSelfDistillation
+kwargs:
+  reg: 0.00001

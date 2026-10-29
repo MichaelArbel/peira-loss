@@ -1,3 +1,0 @@
-name: "csrlearning.algorithms.CSEExactRegressionAlgorithm"
-kwargs:
-  reg: 0.4

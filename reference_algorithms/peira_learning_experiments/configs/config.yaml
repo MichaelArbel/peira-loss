@@ -1,0 +1,26 @@
+defaults:
+  - algorithm: peira_exact
+
+seed: 0
+task:
+  total_steps: 400000
+  init_seed: 0
+  init_scale: 0.000001
+
+device: cpu
+type: double
+latent_dim: 30
+
+data:
+  name: peira_learning_experiments.datasets.gaussian.LinearCCADataGenerator
+  kwargs:
+    d1: 20
+    d2: 20
+    k: 10
+    sigma: 0.1
+    batch_size: 50
+
+optimizer:
+  kwargs:
+    lr: 0.1
+    weight_decay: 0.0

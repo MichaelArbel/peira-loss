@@ -1,5 +1,0 @@
-name: "csrlearning.algorithms.SSLExactSemiGrad"
-kwargs:
-  n_iter: 1
-  latent_dim: ${latent_dim}
-  reg: 0.00001

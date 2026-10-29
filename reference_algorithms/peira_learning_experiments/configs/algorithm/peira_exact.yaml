@@ -1,0 +1,3 @@
+name: "peira_learning.algorithms.ExactPEIRA"
+kwargs:
+  reg: 0.4

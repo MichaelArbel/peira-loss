@@ -1,0 +1,34 @@
+"""Spectrum normalization for exact PEIRA and Self-distillation."""
+
+import torch
+
+
+def compute_peira_spectrum(covariance_spectrum, target_spectrum, reg):
+    n = target_spectrum.shape[0]
+    k = covariance_spectrum.shape[0]
+    num_to_copy = min(n, k)
+    target_spectrum_padded = torch.zeros_like(covariance_spectrum, dtype=torch.float64)
+    target_spectrum_padded[:num_to_copy] = target_spectrum[:num_to_copy]
+    target_spectrum_padded = torch.sqrt(target_spectrum_padded) - reg
+    mask = target_spectrum_padded > 0
+    spectrum_ratio = torch.where(mask, covariance_spectrum / target_spectrum_padded, covariance_spectrum)
+    target_ratio = torch.where(mask, 1.0, 0.0)
+    return (spectrum_ratio, target_ratio)
+
+def compute_self_distillation_spectrum(covariance_spectrum, full_target_spectrum, reg):
+    inter_spectrum = full_target_spectrum.inter_spectrum
+    intra_spectrum_x = full_target_spectrum.intra_spectrum_1
+    Corr = inter_spectrum / intra_spectrum_x
+    thresh = reg / intra_spectrum_x
+    discriminant = Corr ** 2 - 4 * thresh
+    n = intra_spectrum_x.size(0)
+    k = covariance_spectrum.shape[0]
+    num_to_copy = min(n, k)
+    mask = (discriminant >= 0) & (thresh <= 0.25)
+    val = torch.where(mask, 0.5 * (Corr + torch.sqrt(torch.clamp(discriminant, min=0))), torch.zeros_like(Corr, dtype=torch.float64))
+    target = val ** 2 * intra_spectrum_x
+    target_spectrum = torch.nn.functional.pad(target[:k], (0, max(0, k - n)), mode='constant', value=0.0)
+    mask = torch.nn.functional.pad(mask[:k], (0, max(0, k - n)), value=False)
+    spectrum_ratio = torch.where(mask, covariance_spectrum / target_spectrum, covariance_spectrum)
+    target_ratio = torch.where(mask, 1.0, 0.0)
+    return (spectrum_ratio, target_ratio)

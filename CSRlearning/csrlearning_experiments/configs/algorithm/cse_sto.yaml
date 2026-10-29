@@ -1,7 +1,0 @@
-name: "csrlearning.algorithms.CSEStoCompGrad"
-kwargs:
-  n_iter: 1
-  latent_dim: ${latent_dim}
-  reg: 0.4
-  lr: 1.
-  T_max: ${task.total_steps}

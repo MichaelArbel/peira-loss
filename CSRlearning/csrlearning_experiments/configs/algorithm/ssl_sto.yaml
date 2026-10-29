@@ -1,7 +1,0 @@
-name: "csrlearning.algorithms.SSLStoCompSemiGrad"
-kwargs:
-  n_iter: 1
-  latent_dim: ${latent_dim}
-  reg: 0.00001
-  lr: 0.1
-  T_max: 20000

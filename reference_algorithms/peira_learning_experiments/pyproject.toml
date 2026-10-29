@@ -1,0 +1,27 @@
+[project]
+name = "peira-learning-experiments"
+version = "0.1.0"
+description = "Experiment runners and analysis for peira_learning"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["peira-learning", "torch", "numpy", "mlxp", "matplotlib"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {peira_learning_experiments = "."}
+packages = [
+    "peira_learning_experiments",
+    "peira_learning_experiments.datasets",
+    "peira_learning_experiments.evaluation",
+    "peira_learning_experiments.post_runs",
+    "peira_learning_experiments.training",
+    "peira_learning_experiments.utils",
+    "peira_learning_experiments.configs",
+    "peira_learning_experiments.configs.algorithm",
+]
+
+[tool.setuptools.package-data]
+peira_learning_experiments = ["configs/*.yaml", "configs/algorithm/*.yaml"]
