@@ -10,15 +10,15 @@ import torch
 from peira_loss import PEIRALoss
 from peira_loss.loss import _add_ridge, _exact_inverse
 
-# The eb_jepa code that produced the paper's results.
-EB_JEPA_ROOT = os.environ.get(
-    "PEIRA_EB_JEPA_ROOT", os.path.expanduser("~/amilabs/research/eb_jepa")
-)
+# Optional reference: a checkout of the eb_jepa code that produced the paper's results.
+EB_JEPA_ROOT = os.environ.get("PEIRA_EB_JEPA_ROOT")
 KWARGS = dict(latent_dim=16, T_max=10, reg=0.3, lr=0.9, lr_min=0.5)
 
 
 def _reference_cls() -> type:
     """Import the original eb_jepa ``PEIRALoss`` or skip."""
+    if not EB_JEPA_ROOT:
+        pytest.skip("set PEIRA_EB_JEPA_ROOT to compare against the eb_jepa reference")
     if EB_JEPA_ROOT not in sys.path:
         sys.path.insert(0, EB_JEPA_ROOT)
     try:
