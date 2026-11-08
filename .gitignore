@@ -89,4 +89,4 @@ ipython_config.py
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the Python version
-#   is managed by the consume
+#   is managed by the consumer.

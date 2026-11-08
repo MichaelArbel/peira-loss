@@ -65,8 +65,8 @@ class PEIRALoss(nn.Module):
         lr: Initial EMA rate ``eta_init`` (weight of the current batch), in (0, 1].
         lr_min: Final EMA rate ``eta_min``, in (0, lr].
         predictor_cov: Which ``Sigma`` enters ``P``. ``"batch"`` uses the current
-            batch's ``Sigma`` (the code that produced the paper's results);
-            ``"ema"`` uses the EMA estimate, as written in Algorithm 1. ``Q``
+            batch's ``Sigma`` (the ImageNet-1K ablations of Appendix G.1);
+            ``"ema"`` uses the EMA estimate, as in Algorithm 1 and Table 1. ``Q``
             always uses the EMA ``N``.
     """
 
@@ -118,7 +118,7 @@ class PEIRALoss(nn.Module):
             ``cse_loss``, ``reg_loss`` and ``peira_lr``.
         """
         # fp32 outside autocast: bf16 rounding on X^T X can break positive definiteness.
-        with torch.amp.autocast("cuda", enabled=False):
+        with torch.autocast(device_type=z1.device.type, enabled=False):
             x = z1.detach().float()
             y = z2.detach().float()
             B_global = _total_batch_size(z1.shape[0])
@@ -227,7 +227,7 @@ class SelfDistillationLoss(nn.Module):
             and ``ssl_lr`` (the scheduled EMA rate).
         """
         # fp32 outside autocast: bf16 rounding on X^T X can break positive definiteness.
-        with torch.amp.autocast("cuda", enabled=False):
+        with torch.autocast(device_type=z1.device.type, enabled=False):
             x = z1.detach().float()
             y = z2.detach().float()
             B_global = _total_batch_size(z1.shape[0])

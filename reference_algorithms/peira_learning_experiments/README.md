@@ -23,7 +23,7 @@ required; figures are saved directly as PNG files.
 
 ## Launch the runs
 
-From the repository root:
+From `reference_algorithms/`:
 
 ```bash
 bash peira_learning_experiments/scripts/toy_deterministic.sh
@@ -54,8 +54,7 @@ sbatch scripts/toy_deterministic.sh
 
 The launcher stores runs in `../../data/outputs/deterministic_2` and MLXP work
 directories in `../../data/.workdir`, relative to `peira_learning_experiments`.
-For this checkout layout these are `CSRLeaning/data/outputs/deterministic_2` and
-`CSRLeaning/data/.workdir`. Edit `parent_log_dir` in the launcher to use a fresh
+These are `data/outputs/deterministic_2` and `data/.workdir` at the repository root. Edit `parent_log_dir` in the launcher to use a fresh
 run directory; use that same path with the plotting command's `--runs-dir` option.
 
 Each run logs loss and iteration metrics, plus `alignments_<step>` pickle artifacts
@@ -66,7 +65,7 @@ scalar metrics alone cannot produce the heatmaps. Wait for all ten runs to finis
 
 ## Generate the four figures
 
-From the repository root:
+From `reference_algorithms/`:
 
 ```bash
 MPLBACKEND=Agg python peira_learning_experiments/post_runs/post_runs.py
@@ -88,7 +87,7 @@ MPLBACKEND=Agg python peira_learning_experiments/post_runs/post_runs.py \
 ```
 
 The output directory is created automatically. Defaults write the four PNG files
-to `CSRLeaning/figures`, at 300 dpi. `MPLBACKEND=Agg` supports machines without a
+to `figures/` at the repository root, at 300 dpi. `MPLBACKEND=Agg` supports machines without a
 graphical display. Existing figures with the same names are overwritten.
 
 Panels run from initialization scale `1e-2` at the top to `1e-6` at the bottom.

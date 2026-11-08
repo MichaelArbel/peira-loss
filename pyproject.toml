@@ -17,6 +17,11 @@ authors = [
 ]
 dependencies = ["torch>=2.1"]
 
+[project.urls]
+Paper = "https://arxiv.org/abs/2605.17671"
+Code = "https://github.com/Basile-Terv/PEIRA"
+Repository = "https://github.com/MichaelArbel/peira-loss"
+
 [project.optional-dependencies]
 test = ["pytest"]
 

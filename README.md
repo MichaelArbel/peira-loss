@@ -9,23 +9,33 @@ the step counter live in the module `state_dict`, so they are saved and restored
 checkpoint. Multi-GPU training works out of the box: batch second moments are summed across
 ranks with `all_reduce`.
 
+Paper: [arXiv:2605.17671](https://arxiv.org/abs/2605.17671). Training code, configs and
+pretrained checkpoints: [Basile-Terv/PEIRA](https://github.com/Basile-Terv/PEIRA).
+
 ```bash
-pip install -e .
+pip install peira-loss
+# or, for development: pip install -e .
 ```
 
 ```python
 import torch
 from peira_loss import PEIRALoss
 
-loss_fn = PEIRALoss(latent_dim=256, T_max=total_steps, reg=0.1, lr=0.9, lr_min=0.5)  # ImageNet-1K recipe
+loss_fn = PEIRALoss(latent_dim=256, T_max=total_steps, reg=0.1, lr=0.99, lr_min=0.95,
+                    predictor_cov="ema")  # ImageNet-1K recipe of Table 1 (CIFAR-10: reg=0.7)
 z1, z2 = projector(encoder(view1)), projector(encoder(view2))  # [B, 256] each
 out = loss_fn(z1, z2)          # dict: loss, peira_loss, trace_P, cse_loss, reg_loss, peira_lr
 out["loss"].backward()
 ```
 
-`predictor_cov` selects the `Sigma` used in `P`: `"batch"` (default) uses the current
-batch's estimate, as in the runs reported in the paper; `"ema"` uses the moving average, as
-written in Algorithm 1. `N` is always the moving average.
+`predictor_cov` selects the `Sigma` used in `P`: `"ema"` uses the moving average, as in
+Algorithm 1 and the Table 1 runs; `"batch"` (default) uses the current batch's estimate, as in
+the ImageNet-1K ablations of Appendix G.1 (EMA rate 0.9 to 0.5). `N` is always the moving
+average.
+
+`JointSelfDistillationLoss` is the self-distillation baseline of the paper's initialization-scale
+experiment. Its predictor is a buffer updated by an implicit step: call
+`loss_fn.step_predictor()` once after each optimizer step.
 
 Call the loss exactly once per training step: each `forward` advances the EMA-rate
 schedule.
