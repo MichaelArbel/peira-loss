@@ -1,8 +1,7 @@
 """PEIRA loss (Arbel, Terver, Ponce, NeurIPS 2026, arXiv:2605.17671).
 
-Extracted from ``eb_jepa.losses.anticollapse.PEIRALoss``. The ``state_dict`` keys
-(``intra_cov``, ``inter_cov``, ``_extra_state``) are unchanged, so checkpoints of the
-paper runs load as is.
+The moving averages (``intra_cov``, ``inter_cov``) and the step counter (``_extra_state``)
+live in the ``state_dict``, so the loss state is saved and restored with a checkpoint.
 """
 
 from __future__ import annotations
@@ -85,6 +84,8 @@ class PEIRALoss(nn.Module):
             raise ValueError(f"PEIRA `lr` must be in (0, 1]; got {lr}.")
         if not 0.0 < lr_min <= lr:
             raise ValueError(f"PEIRA `lr_min` must be in (0, lr]; got lr_min={lr_min}, lr={lr}.")
+        if T_max <= 0:
+            raise ValueError(f"PEIRA `T_max` must be positive; got {T_max}.")
         if predictor_cov not in ("batch", "ema"):
             raise ValueError(f"PEIRA `predictor_cov` must be 'batch' or 'ema'; got {predictor_cov}.")
         self.reg = reg

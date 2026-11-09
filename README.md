@@ -33,12 +33,12 @@ Algorithm 1 and the Table 1 runs; `"batch"` uses the current batch's estimate, a
 the ImageNet-1K ablations of Appendix G.1 (EMA rate 0.9 to 0.5). `N` is always the moving
 average.
 
-`JointSelfDistillationLoss` is the self-distillation baseline of the paper's initialization-scale
-experiment. Its predictor is a buffer updated by an implicit step: call
-`loss_fn.step_predictor()` once after each optimizer step.
-
 Call the loss exactly once per training step: each `forward` advances the EMA-rate
 schedule.
+
+`JointSelfDistillationLoss` is the self-distillation baseline of the CIFAR-10
+initialization-scale experiment (Figure G.7 of the paper). Its predictor is a buffer updated by
+an implicit step: call `loss_fn.step_predictor()` once after each optimizer step.
 
 ## Citation
 
