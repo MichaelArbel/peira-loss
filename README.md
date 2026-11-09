@@ -21,15 +21,15 @@ pip install peira-loss
 import torch
 from peira_loss import PEIRALoss
 
-loss_fn = PEIRALoss(latent_dim=256, T_max=total_steps, reg=0.1, lr=0.99, lr_min=0.95,
-                    predictor_cov="ema")  # ImageNet-1K recipe of Table 1 (CIFAR-10: reg=0.7)
+loss_fn = PEIRALoss(latent_dim=256, T_max=total_steps)  # Table 1 recipe, ImageNet-1K
+# CIFAR-10: PEIRALoss(latent_dim=..., T_max=..., reg=0.7)
 z1, z2 = projector(encoder(view1)), projector(encoder(view2))  # [B, 256] each
 out = loss_fn(z1, z2)          # dict: loss, peira_loss, trace_P, cse_loss, reg_loss, peira_lr
 out["loss"].backward()
 ```
 
-`predictor_cov` selects the `Sigma` used in `P`: `"ema"` uses the moving average, as in
-Algorithm 1 and the Table 1 runs; `"batch"` (default) uses the current batch's estimate, as in
+`predictor_cov` selects the `Sigma` used in `P`: `"ema"` (default) uses the moving average, as in
+Algorithm 1 and the Table 1 runs; `"batch"` uses the current batch's estimate, as in
 the ImageNet-1K ablations of Appendix G.1 (EMA rate 0.9 to 0.5). `N` is always the moving
 average.
 

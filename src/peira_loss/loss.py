@@ -74,10 +74,10 @@ class PEIRALoss(nn.Module):
         self,
         latent_dim: int,
         T_max: int,
-        reg: float = 0.3,
-        lr: float = 0.9,
-        lr_min: float = 0.5,
-        predictor_cov: Literal["batch", "ema"] = "batch",
+        reg: float = 0.1,
+        lr: float = 0.99,
+        lr_min: float = 0.95,
+        predictor_cov: Literal["batch", "ema"] = "ema",
     ):
         super().__init__()
         # The EMA update is a convex combination of PSD matrices only for lr <= 1.

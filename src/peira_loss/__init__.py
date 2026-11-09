@@ -3,4 +3,4 @@
 from peira_loss.loss import JointSelfDistillationLoss, PEIRALoss, SelfDistillationLoss
 
 __all__ = ["PEIRALoss", "SelfDistillationLoss", "JointSelfDistillationLoss"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

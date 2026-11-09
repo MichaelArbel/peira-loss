@@ -49,7 +49,7 @@ def test_forward_backward() -> None:
 def test_equivalence_with_eb_jepa() -> None:
     """``predictor_cov="batch"``: same values, gradients and state as eb_jepa over 5 steps."""
     Ref = _reference_cls()
-    ref, new = Ref(**KWARGS), PEIRALoss(**KWARGS)
+    ref, new = Ref(**KWARGS), PEIRALoss(**KWARGS, predictor_cov="batch")
     max_diff = 0.0
     for step in range(5):
         z1, z2 = _views(step)
@@ -71,7 +71,7 @@ def test_equivalence_with_eb_jepa() -> None:
     assert max_diff == 0.0
 
     # A mid-training eb_jepa checkpoint resumes identically.
-    resumed = PEIRALoss(**KWARGS)
+    resumed = PEIRALoss(**KWARGS, predictor_cov="batch")
     resumed.load_state_dict(copy.deepcopy(sd_ref))
     z1, z2 = _views(99)
     torch.testing.assert_close(resumed(z1, z2)["loss"], ref(z1, z2)["loss"], rtol=0, atol=0)
@@ -84,7 +84,7 @@ def test_ema_predictor_uses_ema_sigma() -> None:
         out = loss_fn(*_views(step))
     Q = _exact_inverse(_add_ridge(loss_fn.intra_cov, KWARGS["reg"]))
     torch.testing.assert_close(out["trace_P"], torch.trace(loss_fn.inter_cov @ Q))
-    batch = PEIRALoss(**KWARGS)
+    batch = PEIRALoss(**KWARGS, predictor_cov="batch")
     for step in range(3):
         out_batch = batch(*_views(step))
     assert not torch.allclose(out["trace_P"], out_batch["trace_P"])
