@@ -9,7 +9,8 @@ the step counter live in the module `state_dict`, so they are saved and restored
 checkpoint. Multi-GPU training works out of the box: batch second moments are summed across
 ranks with `all_reduce`.
 
-Paper: [arXiv:2605.17671](https://arxiv.org/abs/2605.17671). Training code, configs and
+Paper: [arXiv:2605.17671](https://arxiv.org/abs/2605.17671). Project page:
+[peira-ssl.github.io](https://peira-ssl.github.io). Training code, configs and
 pretrained checkpoints: [Basile-Terv/PEIRA](https://github.com/Basile-Terv/PEIRA).
 
 ```bash
